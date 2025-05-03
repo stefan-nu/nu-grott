@@ -226,6 +226,21 @@ class TestDecrypt(unittest.TestCase):
         self.assertEqual(result, expected)
         
         
+    def test_crypt_has_to_be_symmetric(self):
+        data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x04\x08\x10\x20\x30\x40\x08\x01\x02\x03\x04\10\x20\x40' 
+        expected = "000000000000000001020408102030400801020304082040"
+        
+        result1 = grottdata.encrypt(data_bin)
+        result2 = grottdata.decrypt(data_bin)
+        self.assertEqual(result1, result2)
+        
+        result1   = grottdata.decrypt(grottdata.crypt(data_bin))
+        result2   = grottdata.encrypt(grottdata.crypt(data_bin))
+        self.assertEqual(result1, expected)
+        self.assertEqual(result2, expected)
+        self.assertEqual(result1, result2)
+        
+        
     # \todo: for every protocol grott supports a message should be added to the test
     def test_decrypt_with_real_data_message(self):
         data_bin = b'' # \todo fill in a real data message

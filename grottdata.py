@@ -51,25 +51,36 @@ def format_multi_line(prefix, string, size=80):
     return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
 
 
-def decrypt(decdata) :
-    """#decrypt data."""
-    ndecdata = len(decdata)
+def decrypt(encrypted_binary_data):
+    decrypted_binary_data = crypt(encrypted_binary_data)
+    decrypted_string = "".join("{:02x}".format(n) for n in decrypted_binary_data)
+    return decrypted_string
 
-    # Create mask and convert to hexadecimal
-    mask = "Growatt"
-    hex_mask = ['{:02x}'.format(ord(x)) for x in mask]
-    nmask = len(hex_mask)
 
-    #start decrypt routine
-    unscrambled = list(decdata[0:8]) #take unscramble header
+def encrypt(decrypted_binary_data):
+    encrypted_binary_data = crypt(decrypted_binary_data)
+    encrypted_string = "".join("{:02x}".format(n) for n in encrypted_binary_data)
+    return encrypted_string
 
-    for i,j in zip(range(0,ndecdata-8),cycle(range(0,nmask))):
-        unscrambled = unscrambled + [decdata[i+8] ^ int(hex_mask[j],16)]
 
-    result_string = "".join("{:02x}".format(n) for n in unscrambled)
+def crypt(encrypted_binary_data):
+    len_data = len(encrypted_binary_data)
 
-    logger.debug("Growatt data decrypted V2")
-    return result_string
+    NUM_UNENCRYTED_BYTES = 8 # number of leading unencrypted bytes
+    num_encrypted_bytes  = len_data - NUM_UNENCRYTED_BYTES
+
+    KEY_ASCII = "Growatt"
+    key_hex   = ['{:02x}'.format(ord(x)) for x in KEY_ASCII]
+    LEN_KEY   = len(key_hex)
+
+    decrypted_binary_data = list(encrypted_binary_data[0 : NUM_UNENCRYTED_BYTES])
+        
+    for i in range(0, num_encrypted_bytes) :
+        j = i % LEN_KEY
+        decrypted_byte = [encrypted_binary_data[i+8] ^ int(key_hex[j], 16)]
+        decrypted_binary_data += decrypted_byte
+
+    return decrypted_binary_data
 
 
 # \todo this function lies, it test not only strings but also booleans and integers 
