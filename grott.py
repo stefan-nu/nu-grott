@@ -1,20 +1,18 @@
 """Grott Growatt monitor base"""
-#       For more information how to see aditional documentation on github wiki. #
-#       For version history see: version_history.txt
-# Updated: 2025-04-06
+
 
 import sys
-import argparse
+#import argparse
 import logging
-from grottconf import Conf
-from grottproxy import Proxy
+from grottconf    import Conf
+from grottproxy   import Proxy
 from grottsniffer import Sniff
-from grottserver import *
+from grottserver  import *
 #from collections import defaultdict
 
 VERREL = "3.1.0_20250406"
 
-#set logging definities
+# set logging definities
 LOGGERFORMAT = '%(asctime)s - %(name)s - \t%(levelname)s: %(message)s'
 logging.basicConfig(level=logging.INFO,format=LOGGERFORMAT)
 DEBUG_LEVELV_NUM = 5
@@ -26,8 +24,10 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 
     if hasattr(logging, levelName):
         raise AttributeError("{} already defined in logging module".format(levelName))
+    
     if hasattr(logging, methodName):
         raise AttributeError("{} already defined in logging module".format(methodName))
+    
     if hasattr(logging.getLoggerClass(), methodName):
         raise AttributeError("{} already defined in logger class".format(methodName))
 
@@ -39,26 +39,25 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
         logging.log(levelNum, message, *args, **kwargs)
 
     logging.addLevelName(levelNum, levelName)
-    setattr(logging, levelName, levelNum)
+    setattr(logging,                  levelName,  levelNum)
     setattr(logging.getLoggerClass(), methodName, logForLevel)
-    setattr(logging, methodName, logToRoot)
-
+    setattr(logging,                  methodName, logToRoot)
+        
 addLoggingLevel("DEBUGV", logging.DEBUG - 5)
 
 logger = logging.getLogger(__name__)
 
-logger.info('Grott started, version : %s',VERREL)
+logger.info('Grott started, version : %s', VERREL)
 
-#proces config file
-conf = Conf(VERREL)
-#change loglevel might be changed after config processing.
-logger.setLevel(conf.loglevel.upper())
+conf = Conf(VERREL) # process config file
+
+logger.setLevel(conf.loglevel.upper()) # loglevel might be changed after config processing
 
 if conf.mode == 'proxy':
     proxy = Proxy(conf)
     try:
         proxy.main(conf)
-    #except KeyboardInterrupt:
+
     except KeyboardInterrupt:
         logger.info("Ctrl C - Stopping server:")
         try:
