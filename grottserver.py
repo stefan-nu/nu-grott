@@ -160,7 +160,7 @@ def validate_record(xdata):
 
     return(returncc)
 
-def htmlsendresp(self, responserc, responseheader,  responsetxt) :
+def htmlsendresp(self, responserc, responseheader, responsetxt) :
         #send response
         self.send_response(responserc)
         self.send_header('Content-type', responseheader)
@@ -168,11 +168,11 @@ def htmlsendresp(self, responserc, responseheader,  responsetxt) :
         self.wfile.write(responsetxt)
         if verbose: print("\t - Grotthttpserver - http response send: ", responserc, responseheader, responsetxt)
 
-def createtimecommand(self, protocol,deviceid,loggerid,sequenceno) :
+def createtimecommand(self, protocol, deviceid, loggerid, sequenceno) :
         protocol = protocol
         loggerid = loggerid
-        #override diviceid (always send time to logger)
-        deviceid = "01"
+        
+        deviceid = "01" # override device_id (always send time to logger)
         sequenceno = sequenceno
         bodybytes = loggerid.encode('ISO-8859-1')
         body = bodybytes.hex()
@@ -187,7 +187,7 @@ def createtimecommand(self, protocol,deviceid,loggerid,sequenceno) :
         #calculate length of payload = body/2 (str => bytes) + 2 bytes invertid + command.
         bodylen = int(len(body)/2+2)
 
-        #create header
+        # create header
         header = "0001" + "00" + protocol + "{:04x}".format(bodylen) + deviceid + "18"
         #print(header)
         body = header + body
@@ -197,7 +197,7 @@ def createtimecommand(self, protocol,deviceid,loggerid,sequenceno) :
             print(format_multi_line("\t\t ",body))
 
         if protocol != "02" :
-            #encrypt message
+            # encrypt message
             body = decrypt(body)
             crc16 = calc_crc(bytes.fromhex(body))
             body = bytes.fromhex(body) + crc16.to_bytes(2, "big")
@@ -206,7 +206,7 @@ def createtimecommand(self, protocol,deviceid,loggerid,sequenceno) :
             print("\t - Grottserver - Time command created :")
             print(format_multi_line("\t\t ",body))
 
-        #just to be sure delete register info
+        # just to be sure delete register info
         try:
             del commandresponse["18"]["001f"]
         except:
@@ -231,7 +231,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
             if self.path == '/':
                 self.path = "grott.html"
 
-            #only allow files from current directory
+            # only allow files from current directory
             if self.path[0] == '/':
                 self.path =self.path[1:len(self.path)]
 
@@ -256,7 +256,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     return
 
             elif self.path.startswith("info"):
-                    #retrieve grottserver status
+                    # retrieve grottserver status
                     if verbose: print("\t - Grotthttpserver - Status requested")
 
 
@@ -273,7 +273,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     except:
                         print("\t - Grottserver PSUTIL not available no process information can be printed")
 
-                    #retrieve grottserver status
+                    # retrieve grottserver status
                     print("\t - Grottserver connection queue : ")
                     print("\t - ", list(self.send_queuereg.keys()))
                     #responsetxt = json.dumps(list(send_queuereg.keys())).encode('ISO-8859-1')
@@ -293,7 +293,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 #validcommand = False
                 if urlquery == {} :
-                    #no command entered return loggerreg info:
+                    # no command entered return loggerreg info:
                     responsetxt = json.dumps(loggerreg).encode('ISO-8859-1')
                     responserc = 200
                     responseheader = "text/html"
@@ -303,13 +303,13 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 else:
 
                     try:
-                        #is valid command specified?
+                        # is valid command specified?
                         command = urlquery["command"][0]
                         #print(command)
                         if command in ("register", "regall") :
                             if verbose: print("\t - " + "Grotthttpserver: get command: ", command)
                         else :
-                            #no valid command entered
+                            # no valid command entered
                             responsetxt = b'no valid command entered'
                             responserc = 400
                             responseheader = "text/html"
@@ -327,7 +327,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         if sendcommand == "05" :
                             inverterid_found = False
                             try:
-                                #test if inverter id is specified and get loggerid
+                                # test if inverter id is specified and get loggerid
                                 inverterid = urlquery["inverter"][0]
                                 for key in loggerreg.keys() :
                                     for key2 in loggerreg[key].keys() :
@@ -382,7 +382,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
 
                     # test if register is specified and set reg value.
                     if command == "register":
-                        #test if valid reg is applied
+                        # test if valid reg is applied
                         if int(urlquery["register"][0]) >= 0 and int(urlquery["register"][0]) < 4096 :
                             register = urlquery["register"][0]
                         else:
@@ -413,12 +413,11 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 if loggerreg[dataloggerid]["protocol"] == "06" :
                     body = body + "0000000000000000000000000000000000000000"
                 body = body + "{:04x}".format(int(register))
-                #assumption now only 1 reg query; other put below end register
-                body = body + "{:04x}".format(int(register))
-                #calculate length of payload = body/2 (str => bytes) + 2 bytes invertid + command.
-                bodylen = int(len(body)/2+2)
+               
+                body    = body + "{:04x}".format(int(register))  # assumption now only 1 reg query; other put below end register
+                bodylen = int(len(body)/2+2) # calculate length of payload = body/2 (str => bytes) + 2 bytes invertid + command
 
-                #device id for datalogger is by default "01" for inverter deviceid is inverterid!
+                # device id for datalogger is by default "01" for inverter deviceid is inverterid!
                 deviceid = "01"
                 # test if it is inverter command and set
                 if sendcommand == "05":
@@ -434,7 +433,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     print(format_multi_line("\t\t ",body))
 
                 if loggerreg[dataloggerid]["protocol"] != "02" :
-                    #encrypt message
+                    # encrypt message
                     body = decrypt(body)
                     crc16 = calc_crc(bytes.fromhex(body))
                     body = bytes.fromhex(body) + crc16.to_bytes(2, "big")
@@ -448,18 +447,18 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 qname = loggerreg[dataloggerid]["ip"] + "_" + str(loggerreg[dataloggerid]["port"])
                 self.send_queuereg[qname].put(body)
                 responseno = "{:04x}".format(sendseq)
-                regkey = "{:04x}".format(int(register))
+                regkey     = "{:04x}".format(int(register))
                 try:
                     del commandresponse[sendcommand][regkey]
                 except:
                     pass
 
 
-                #wait for response
-                #Set #retry waiting loop for datalogger or inverter
+                # wait for response
+                # Set #retry waiting loop for datalogger or inverter
                 if sendcommand == "05" :
-                   wait = round(self.conf.inverterrespwait/self.conf.apirespwait)
-                   #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
+                    wait = round(self.conf.inverterrespwait/self.conf.apirespwait)
+                    #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
                 else :
                     wait = round(self.conf.dataloggerrespwait/self.conf.apirespwait)
                     #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
@@ -481,8 +480,8 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         return
 
                     except  :
-                        #wait for second and try again
-                         #Set retry waiting cycle time loop for datalogger or inverter
+                        # wait for second and try again
+                        # Set retry waiting cycle time loop for datalogger or inverter
 
                         time.sleep(self.conf.apirespwait)
 
@@ -528,7 +527,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
             url = urlparse(self.path)
             urlquery = parse_qs(url.query)
 
-            #only allow files from current directory
+            # only allow files from current directory
             if self.path[0] == '/':
                 self.path =self.path[1:len(self.path)]
 
@@ -542,7 +541,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     sendcommand = "06"
 
                 if urlquery == "" :
-                    #no command entered return loggerreg info:
+                    # no command entered return loggerreg info:
                     responsetxt = b'empty put received'
                     responserc = 400
                     responseheader = "text/html"
@@ -552,7 +551,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 else:
 
                     try:
-                        #is valid command specified?
+                        # is valid command specified?
                         command = urlquery["command"][0]
                         if command in ("register", "multiregister", "datetime") :
                             if verbose: print("\t - Grotthttpserver - PUT command: ", command)
@@ -569,12 +568,12 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         htmlsendresp(self,responserc,responseheader,responsetxt)
                         return
 
-                    # test if datalogger  and / or inverter id is specified.
+                    # test if datalogger and / or inverter id is specified.
                     try:
                         if sendcommand == "06" :
                             inverterid_found = False
                             try:
-                                #test if inverter id is specified and get loggerid
+                                # test if inverter id is specified and get loggerid
                                 inverterid = urlquery["inverter"][0]
                                 for key in loggerreg.keys() :
                                     for key2 in loggerreg[key].keys() :
@@ -618,7 +617,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     # test if register is specified and set reg value.
 
                     if command == "register":
-                        #test if valid reg is applied
+                        # test if valid reg is applied
                         if int(urlquery["register"][0]) >= 0 and int(urlquery["register"][0]) < 4096 :
                             register = urlquery["register"][0]
                         else:
@@ -689,14 +688,14 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         # TODO: Check the value is the right length for the given start/end registers
 
                     elif command == "datetime" :
-                        #process set datetime, only allowed for datalogger!!!
+                        # process set datetime, only allowed for datalogger!!!
                         if sendcommand == "06" :
                             responsetxt = b'datetime command not allowed for inverter'
                             responserc = 400
                             responseheader = "text/body"
                             htmlsendresp(self,responserc,responseheader,responsetxt)
                             return
-                        #prepare datetime
+                        # prepare datetime
                         register = 31
                         value = str(datetime.now().replace(microsecond=0))
 
@@ -708,7 +707,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         htmlsendresp(self,responserc,responseheader,responsetxt)
                         return
 
-                    #test value:
+                    # test value:
                     if sendcommand == "06" :
                         try:
                             # is format keyword specified? (dec, text, hex)
@@ -723,15 +722,15 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                             # no set default format op dec.
                             formatval = "dec"
 
-                        #convert value if necessary
+                        # convert value if necessary
                         if formatval == "dec" :
-                            #input in dec (standard)
+                            # input in dec (standard)
                             value = int(value)
                         elif formatval == "text" :
-                            #input in text
+                            # input in text
                             value = int(value.encode('ISO-8859-1').hex(),16)
                         else :
-                            #input in Hex
+                            # input in Hex
                             value = int(value,16)
 
                         if value < 0 and value > 65535 :
@@ -771,14 +770,14 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 bodylen = int(len(body)/2+2)
 
-                #device id for datalogger is by default "01" for inverter deviceid is inverterid!
+                # device id for datalogger is by default "01" for inverter deviceid is inverterid!
                 deviceid = "01"
                 # test if it is inverter command and set deviceid
                 if sendcommand in ("06","10") :
                     deviceid = (loggerreg[dataloggerid][inverterid]["inverterno"])
                 print("\t - Grotthttpserver: selected deviceid :", deviceid)
 
-                #create header
+                # create header
                 header = "{:04x}".format(sendseq) + "00" + loggerreg[dataloggerid]["protocol"] + "{:04x}".format(bodylen) + deviceid + sendcommand
                 body = header + body
                 body = bytes.fromhex(body)
@@ -788,7 +787,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     print(format_multi_line("\t\t ",body))
 
                 if loggerreg[dataloggerid]["protocol"] != "02" :
-                    #encrypt message
+                    # encrypt message
                     body = decrypt(body)
                     crc16 = calc_crc(bytes.fromhex(body))
                     body = bytes.fromhex(body) + crc16.to_bytes(2, "big")
@@ -803,7 +802,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                     regkey = "{:04x}".format(int(register))
 
                 try:
-                    #delete response: be aware a 18 command give 19 response, 06 send command gives 06 response in different format!
+                    # delete response: be aware a 18 command give 19 response, 06 send command gives 06 response in different format!
                     if sendcommand == "18" :
                         del commandresponse[sendcommand][regkey]
                     else:
@@ -811,14 +810,14 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 except:
                     pass
 
-                #wait for response
-                #Set #retry waiting loop for datalogger or inverter
+                # wait for response
+                # Set #retry waiting loop for datalogger or inverter
                 if sendcommand == "06" :
-                   wait = round(self.conf.inverterrespwait/self.conf.apirespwait)
-                   #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
+                    wait = round(self.conf.inverterrespwait/self.conf.apirespwait)
+                    #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
                 else :
-                   wait = round(self.conf.dataloggerrespwait/self.conf.apirespwait)
-                   #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
+                    wait = round(self.conf.dataloggerrespwait/self.conf.apirespwait)
+                    #if verbose: print("\t - Grotthttpserver - wait Cycles:", wait )
 
                 for x in range(wait):
                     if verbose: print("\t - Grotthttpserver - wait for PUT response")
@@ -831,8 +830,8 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                         if verbose: print("\t - " + "Grotthttperver - Commandresponse ", responseno, register, commandresponse[sendcommand][regkey])
                         break
                     except:
-                        #wait for second and try again
-                        #Set retry waiting cycle time loop for datalogger or inverter
+                        # wait for second and try again
+                        # Set retry waiting cycle time loop for datalogger or inverter
                         time.sleep(self.conf.apirespwait)
                 try:
                     if comresp != "" :
@@ -854,7 +853,7 @@ class GrottHttpRequestHandler(http.server.BaseHTTPRequestHandler):
                 responserc = 200
                 responseheader = "text/body"
                 if verbose: print("\t - " + "Grott: datalogger command response :", responserc, responsetxt, responseheader)
-                htmlsendresp(self,responserc,responseheader,responsetxt)
+                htmlsendresp(self,responserc, responseheader, responsetxt)
                 return
 
         except Exception as e:
@@ -876,10 +875,9 @@ class GrottHttpServer:
     def run(self,conf):
         try:
             logger.info("GrottHttpserver - server listening")
-            print("voor")
             logger.info("GrottHttpserver - Response interval wait time: %s", conf.apirespwait)
-            logger.info("GrottHttpserver - Datalogger ResponseWait: %s", conf.dataloggerrespwait)
-            logger.info("GrottHttpserver - Inverter ResponseWait: %s", conf.inverterrespwait)
+            logger.info("GrottHttpserver - Datalogger ResponseWait: %s",     conf.dataloggerrespwait)
+            logger.info("GrottHttpserver - Inverter ResponseWait: %s",       conf.inverterrespwait)
             self.server.serve_forever()
         except Exception as e:
             print(e)
@@ -892,20 +890,20 @@ class sendrecvserver:
         self.server.bind((host, port))
         self.server.listen(5)
 
-        self.inputs = {}
-        self.outputs = {}
-        self.exceptional ={}
+        self.inputs        = {}
+        self.outputs       = {}
+        self.exceptional   ={}
         self.send_queuereg = send_queuereg
-        self.channel = {}
-        self.lastmessage = {}                                                   #to detect inactive connections
+        self.channel       = {}
+        self.lastmessage   = {}  #to detect inactive connections
 
         logger.info(f"Grottserver - Ready to listen at: {host}:{port}")
 
     def run(self,conf):
         logger.info("Grottserver - server listening")
         trname = conf.serverip+"_"+str(conf.serverport)
-        self.inputs[trname] = [self.server]
-        self.outputs[trname] = [self.server]
+        self.inputs[trname]      = [self.server]
+        self.outputs[trname]     = [self.server]
         self.exceptional[trname] = [self.server]
         while self.inputs:
             readable, writable, exceptional = select.select(
@@ -924,8 +922,8 @@ class sendrecvserver:
         # Start seperate thread per connectiob
 
         s = conn
-        self.inputs[qname] = [s]
-        self.outputs[qname] = [s]
+        self.inputs[qname]      = [s]
+        self.outputs[qname]     = [s]
         self.exceptional[qname] = [s]
 
         try:
@@ -940,13 +938,14 @@ class sendrecvserver:
                 self.inputs[qname], self.outputs[qname], self.exceptional[qname])
 
                 for s in readable:
-                    self.handle_readable_socket(conf,s,trname)
+                    self.handle_readable_socket(conf, s, trname)
 
                 for s in writable:
-                    self.handle_writable_socket(conf,s,trname)
+                    self.handle_writable_socket(conf, s, trname)
 
                 for s in exceptional:
-                    self.handle_exceptional_socket(conf,s)
+                    self.handle_exceptional_socket(conf, s)
+                    
         except Exception as e:
             logger.info("Socket closed: %s", e)
 
@@ -954,7 +953,7 @@ class sendrecvserver:
 
     def handle_readable_socket(self, conf, s, trname):
         logger.debug("handle_readble_socket, input received on socket : %s",s)
-        # test if comming from growatt server and set flag
+        # test if coming from growatt server and set flag
 
         try:
             if s is self.server:
@@ -964,7 +963,7 @@ class sendrecvserver:
             else:
                 # Existing connection
                 try:
-                    #read buffer until empty!!!!
+                    # read buffer until empty
                     msgbuffer = b''
                     buffsize = 1024
                     while True:
@@ -973,9 +972,10 @@ class sendrecvserver:
                         if len(part) < buffsize:
                         # either 0 or end of data
                             break
-                    #process the data
+                        
+                    # process the data
                     if msgbuffer:
-                        #split buffer if contain multiple records
+                        # split buffer if contain multiple records
                         logger.debug("start message buffer processing")
                         reclength = int.from_bytes(msgbuffer[4:6],"big")
                         buflength = len(msgbuffer)
@@ -984,9 +984,9 @@ class sendrecvserver:
                             return
                         while reclength + 8 <= buflength:
                             logger.debug("Process message buffer split processing")
-                            #get first message
+                            # get first message
                             data = msgbuffer[0:reclength+8]
-                            #set last reference time (for removing inactive connections)
+                            # set last reference time (for removing inactive connections)
                             self.lastmessage[s] = time.time()
                             header = "".join("{:02x}".format(n) for n in data[0:8])
                             rectype = header[14:16]
@@ -998,14 +998,14 @@ class sendrecvserver:
                                     if sRaddr[0] == conf.growattip and sRaddr[1] == int(conf.growattport) :
                                         logger.debug("handle_readble_socket, data from growatt server will be ignored")
                                         logger.debug("handle_readble_socket, original data:\n{0} \n".format(format_multi_line("\t",data,80)))
-                                        #no further processing needed
+                                        # no further processing needed
                                         return()
                                     else:
                                         logger.debug("handle_readble_socket, process data to sent to growatt server")
 
                                         if rectype in ("03", "04", "16","50", "1b", "19","20","29"):
-                                            #forward only specific recordtypes
-                                            #get qname for growatt server based on growatt address and client addres
+                                            # forward only specific recordtypes
+                                            # get qname for growatt server based on growatt address and client addres
                                             gLaddr = self.channel[s].getsockname()
                                             qname = gLaddr[0]+"_"+str(gLaddr[1])
 
@@ -1017,10 +1017,10 @@ class sendrecvserver:
                                                 return()
 
                                             logger.debug("handle_readble_socket, data forwarded to growatt server")
-                                            #wait for ack from growatt server
+                                            # wait for ack from growatt server
                                             if rectype == "03":
                                                 self.waitsync(seqno,s,2)
-                                            #    time.sleep(0.1)
+                                            #   time.sleep(0.1)
                                         else:
                                             logger.debug("handle_readble_socket, data filtered and not forwarded to growatt server:")
 
@@ -1028,9 +1028,9 @@ class sendrecvserver:
                                 logger.warning("handle_readble_socket, Growatt passthrough error: %s",e)
                                 logger.warning("handle_readble_socket, continue without forwarding")
 
-                            #Process the data
+                            # Process the data
                             self.process_data(conf,s, data)
-                            #create buffer with remaining messages
+                            # create buffer with remaining messages
                             if buflength > reclength+8:
                                 logger.debug("handle_readble_socket, process additional messages in buffer")
                                 msgbuffer = msgbuffer[reclength+8:buflength]
@@ -1042,10 +1042,10 @@ class sendrecvserver:
                         logger.warning("handle_readble_socket, empty read, close connection")
                         self.close_connection(conf,s)
 
-                #except ConnectionResetError:
+                # except ConnectionResetError:
                 except Exception as e:
                     logger.warning("handle_readble_socket, ConnectionResetError exception: %s",e)
-                    #close client and passthrough connection
+                    # close client and passthrough connection
                     self.close_connection(conf,s)
 
         except Exception as e:
@@ -1055,14 +1055,14 @@ class sendrecvserver:
     def handle_writable_socket(self, conf, s, trname):
         #logger.debug("handle_writable_socket for: %s",s)
         try:
-            #with print statement no crash, without crash, does sleep solve this problem ?
+            # with print statement no crash, without crash, does sleep solve this problem ?
             time.sleep(0.1)
 
             if s.fileno() == -1 :
                 logger.info("handle_writable_socket ({0}), socket already closed".format(trname))
                 return
             try:
-                #try for debug 007
+                # try for debug 007
                 client_address, client_port = s.getpeername()
                 if conf.serverpassthrough:
                     if client_address == self.forwardip and client_port == int(self.forwardport):
@@ -1080,9 +1080,9 @@ class sendrecvserver:
                 s.send(next_msg)
 
             except queue.Empty:
-                #Do not activate logger entry here will full-up the log!!!!!
-                #wait before handling next message
-                #time.sleep(0.1)
+                # Do not activate logger entry here will full-up the log!!!!!
+                # wait before handling next message
+                # time.sleep(0.1)
                 pass
 
             # calculate last message send and close connection if iddle for more then 90s (ping frequency)
@@ -1093,7 +1093,7 @@ class sendrecvserver:
                     timeout =  time.time()-self.lastmessage[s]
                     logger.debugv("handle_writable_connection: {0}, timer: {1}, connectiontimeout: {2}".format(trname,timeout,conf.ConnectionTimeout))
                 except Exception as e:
-                    #no lastmessage for this connection yet, set lastmessage skip processing
+                    # no lastmessage for this connection yet, set lastmessage skip processing
                     self.lastmessage[s] = time.time()
                     timeout =  0
 
@@ -1126,23 +1126,23 @@ class sendrecvserver:
             client_address, client_port = connection.getpeername()
             qname = client_address + "_" + str(client_port)
 
-            #create queue
+            # create queue
             self.send_queuereg[qname] = queue.Queue()
             logger.debug("handle_new_connection, send queue created for: %s", qname)
 
             if conf.serverpassthrough:
-                #start thread for handling forward connection before client thread!!
+                # start thread for handling forward connection before client thread
                 forward = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 forward.connect((conf.growattip, conf.growattport))
                 logger.info(f"forward, connection with growatt server established: {conf.growattip}:{conf.growattport}")
                 logger.debug(f"forward, socket: {forward}")
                 gLaddr = forward.getsockname()
                 gqname =  gLaddr[0] + "_" + str(gLaddr[1])
-                #get actual growatt server address if DNS name is used in .ini settings
+                # get actual growatt server address if DNS name is used in .ini settings
                 self.forwardip, self.forwardport = forward.getpeername()
                 self.send_queuereg[gqname] = queue.Queue()
 
-                #create forward channel pair
+                # create forward channel pair
                 self.channel[connection] = forward
                 self.channel[forward] = connection
                 #self.gwserver =  Forward.start(self,conf.growattip, conf.growattport)
@@ -1164,7 +1164,7 @@ class sendrecvserver:
     def close_connection(self, conf, s):
         logger.debug("Close Connection for socket: {0}".format(s))
 
-        #retrieve information about connection
+        # retrieve information about connection
         logger.debugv("retrieve connection information")
 
         close_fd = s.fileno()
@@ -1176,7 +1176,7 @@ class sendrecvserver:
 
         try:
             logger.debug("Close Connection for socket: {0}".format(s))
-            #Test if endpoint still exist?
+            # Test if endpoint still exist?
             s.close()
         except Exception as e:
             logger.debug("close connection error:  %s", e)
@@ -1202,7 +1202,7 @@ class sendrecvserver:
             pt_qname = pt_address + "_" + str(pt_port)
             try:
                 logger.debugv("Close Passtrough Connection socket: {0}".format(pt_socket))
-                #Test if endpoint still exist?
+                # Test if endpoint still exist?
                 pt_socket.close()
             except Exception as e:
                 logger.error("close Passthrough connection error:  %s", e)
@@ -1222,15 +1222,15 @@ class sendrecvserver:
         except Exception as e:
             logger.debugv("clean connection queues error:  %s", e)
 
-        #clean channels
+        # clean channels
         if s in self.channel:
                 del self.channel[s]
         if pt_socket in self.channel:
                 del self.channel[pt_socket]
 
     def waitsync(self,sequencenumber,sendersock,timeout=1):
-        #this routine will wait on (ack/nack) response for a message
-        #wil lbe crteadted in the future, no only perform a wait to give the remote (e.g. client or growatt server) the time to response.
+        # this routine will wait on (ack/nack) response for a message
+        # will be created in the future, no only perform a wait to give the remote (e.g. client or growatt server) the time to response.
         logger.debug("waitsync, wait for response on msg:{0} from: {1}".format(sequencenumber,sendersock))
         time.sleep(timeout)
 
@@ -1252,21 +1252,21 @@ class sendrecvserver:
             client_address, client_port = s.getpeername()
             qname = client_address + "_" + str(client_port)
 
-            #V0.0.14: default response on record to none (ignore record)
+            # V0.0.14: default response on record to none (ignore record)
             response = None
 
             # Display data
             logger.debug(f"process_data, data received from : {client_address}:{client_port}")
             logger.debug("\n{0}".format(format_multi_line("\t", data)))
 
-            #validate data (Length + CRC for 05/06)
-            #join gebeurt nu meerdere keren! Stroomlijnen!!!!
+            # validate data (Length + CRC for 05/06)
+            # join gebeurt nu meerdere keren! Stroomlijnen!!!!
             vdata = "".join("{:02x}".format(n) for n in data)
             validatecc = validate_record(vdata)
-            #validatecc = 0
+            # validatecc = 0
             if validatecc != 0 :
                 logger.debug("process_data, invalid data record received, processing stopped for this record returncode: %s",validatecc)
-                #Create response if needed?
+                # Create response if needed?
                 #self.send_queuereg[qname].put(response)
                 return
 
@@ -1294,7 +1294,7 @@ class sendrecvserver:
                 logger.debug(f"process_data, 16- ping response:")
                 logger.debug("\n{0}".format(format_multi_line("\t\t ", response)))
 
-                #     #v0.0.14a: create temporary also logger record at ping (to support shinelink without inverters)
+                # v0.0.14a: create temporary also logger record at ping (to support shinelink without inverters)
 
                 try:
                     loggerreg[loggerid].update({"ip" : client_address, "port" : client_port, "protocol" : header[6:8]})
@@ -1303,14 +1303,14 @@ class sendrecvserver:
                     logger.debug(f"process_data, datalogger id: {loggerid} added by ping: {loggerreg[loggerid]}")
 
 
-            #v0.0.14: remove "29" (no response will be sent for this record!)
+            # v0.0.14: remove "29" (no response will be sent for this record!)
             elif rectype in ("03", "04", "50", "1b", "20"):
                 # if datarecord send ack.
                 print("\t - Grottserver - " + header[12:16] + " data record received")
 
                 # create ack response
                 if header[6:8] == '02':
-                    #protocol 02, unencrypted ack
+                    # protocol 02, unencrypted ack
                     response = bytes.fromhex(header[0:8] + '0003' + header[12:16] + '00')
                 else:
                     # protocol 05/06, encrypted ack
@@ -1350,12 +1350,12 @@ class sendrecvserver:
                         loggerreg[loggerid] = {"ip" : client_address, "port" : client_port, "protocol" : header[6:8]}
                         logger.debug("Datalogger id added by: %s", loggerid)
 
-                    #add invertid
+                    # add invertid
                     loggerreg[loggerid].update({inverterid : {"inverterno" : deviceid, "power" : 0}} )
                     logger.debug("Inverter id added: %s", inverterid)
-                    #send response
+                    # send response
                     self.send_queuereg[qname].put(response)
-                    #wait some time before response on announcement is processed (maybe create a waitsync routine?)
+                    # wait some time before response on announcement is processed (maybe create a waitsync routine?)
                     #self.waitsync(sequencenumber,s)
                     #time.sleep(5)
                     # Create time command en put on queue
@@ -1372,7 +1372,7 @@ class sendrecvserver:
                 register = int(result_string[36+offset:40+offset],16)
                 if rectype == "05" :
                     #value = result_string[40+offset:44+offset]
-                    #v0.0.14: test if empty response is sent (this will give CRC code as values)
+                    # v0.0.14: test if empty response is sent (this will give CRC code as values)
                     #print("length resultstring:", len(result_string))
                     #print("result starts on:", 48+offset)
                     if len(result_string) == 48+offset :
@@ -1400,7 +1400,7 @@ class sendrecvserver:
                 if rectype == "18" :
                     commandresponse["18"][regkey] = {"result" : result}
                 else :
-                    #rectype 05 or 19
+                    # rectype 05 or 19
                     commandresponse[rectype][regkey] = {"value" : value}
 
                 response = None
@@ -1444,13 +1444,14 @@ class sendrecvserver:
 class Server :
 
     def __init__(self, conf):
-        #set loglevel
+        # set loglevel
         logger.setLevel(conf.loglevel.upper())
         conf.vrmserver = vrmserver
         logger.info("Grottserver inititialisation started, grottserver version %s",conf.vrmserver)
 
+
     def main(self,conf):
-        #set loglevel
+        # set loglevel
         self.conf=conf
         logger.setLevel(conf.loglevel.upper())
         logger.info("Grott server started")
@@ -1470,7 +1471,6 @@ class Server :
         http_server_thread.start()
         connection_server_thread.start()
 
-
         while True:
             time.sleep(60)
             #start maintance processing
@@ -1487,6 +1487,7 @@ class Server :
 
 if __name__ == "__main__":
     """main module: be aware this is only exectuted if grottserver runs standalone!"""
+    
     addLoggingLevel("DEBUGV", logging.DEBUG - 5)
     logging.basicConfig(level=logging.DEBUG)
     logger.info("Grottserver Version: %s",vrmserver)
@@ -1505,7 +1506,7 @@ if __name__ == "__main__":
             confserver = True
             conf = Conf(vrmserver)
             logger.debug("Configuration being set by grottconf")
-            #change loglevel might be changed after config processing.
+            # change loglevel might be changed after config processing.
             logger.setLevel(conf.loglevel.upper())
         except Exception as e:
             logger.info("Minimal pre-defined default configuration being used: %s",e)
