@@ -8,7 +8,7 @@ from paho.mqtt.publish import single, multiple
 
 from grottconf import Conf
 
-__version__ = "0.0.7-rc2"
+__version__ = "0.0.7"
 
 """A pluging for grott
 This plugin allow to have autodiscovery of the device in HA
@@ -513,7 +513,7 @@ def make_payload(conf: Conf, device: str, name: str, key: str, unit: str = None)
     # and apply it to the HA config
     layout = conf.recorddict[conf.layout]
     if "value_template" not in payload and key in layout:
-        # From grottdata:207, default type is num, also process numx
+        # From utils:207, default type is num, also process numx
         if layout[key].get("type", "num") in ("num", "numx") and layout[key].get(
             "divide", "1"
         ):
