@@ -6,7 +6,10 @@ import socket
 import select
 import time
 import sys
-from grottdata import procdata, decrypt, format_multi_line
+from crc       import modbus_crc
+from utils     import decrypt, format_multi_line
+from grottdata import process_data
+
 vrmproxy = "3.0.0_241019"
 
 # to resolve errno 32: broken pipe issue (only linux)
@@ -23,18 +26,6 @@ buffer_size = 4096
 delay = 0.0002
 
 
-""""calculate CR16, Modbus."""
-def calc_crc(data):
-    crc = 0xFFFF
-    for pos in data:
-        crc ^= pos
-        for i in range(8):
-            if (crc & 1) != 0:
-                crc >>= 1
-                crc ^= 0xA001
-            else:
-                crc >>= 1
-    return crc
 
 
 """ validata data record on length and CRC (for "05" and "06" records)"""
@@ -60,7 +51,7 @@ def validate_record(xdata):
 
     if protocol != "02":
         try:
-            crc_calc = calc_crc(data[0 : len_data-2])
+            crc_calc = modbus_crc(data[0 : len_data-2])
         except:
             crc_calc = crc = 0 # why is this needed ?
 
