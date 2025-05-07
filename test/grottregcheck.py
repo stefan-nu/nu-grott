@@ -7,7 +7,7 @@ import struct
 __DEBUG__ = False
 
 
-class GrottDataMarker:
+class utilsMarker:
     """
     The data marker specifies the position in the packet
     where the registers <from_reg> <to_reg> are located
@@ -193,7 +193,7 @@ class GrottRegChecker:
         except Exception as e:
             print(e)
 
-    def map_extractor(self) -> List[GrottDataMarker]:
+    def map_extractor(self) -> List[utilsMarker]:
         """
         Extract the register maps from the packet
         """
@@ -201,7 +201,7 @@ class GrottRegChecker:
         marker = self.data_start - 10
         reg_s, reg_e = struct.unpack('>hh', bytes.fromhex(self.packet[marker + 2:marker + 10]))
         num_registers = reg_e - reg_s + 1
-        regs = [GrottDataMarker(marker + 10, reg_s, reg_e)]
+        regs = [utilsMarker(marker + 10, reg_s, reg_e)]
         data_start = marker + 10
 
         while True:
@@ -213,7 +213,7 @@ class GrottRegChecker:
             reg_s, reg_e = struct.unpack('>hh', bytes.fromhex(self.packet[marker_next:marker_next + 8]))
             """ Mapping for the start:end register in this section """
             if reg_e > reg_s:
-                regs.append(GrottDataMarker(marker_next + 8, reg_s, reg_e))
+                regs.append(utilsMarker(marker_next + 8, reg_s, reg_e))
             data_start = marker_next + 8
             num_registers = reg_e - reg_s + 1
 
@@ -292,7 +292,7 @@ class GrottRegChecker:
             if _map.from_reg <= reg <= _map.to_reg:
                 reg_idx = [x for x in range(_map.from_reg, _map.to_reg + 1)].index(reg)
                 if __DEBUG__:
-                    print(f'GrottDataMarker pos: {_map.data_from + reg_idx * 4}')
+                    print(f'utilsMarker pos: {_map.data_from + reg_idx * 4}')
                 return _map.data_from + reg_idx * 4
 
         raise InvalidRegister(f'This packet has no register with ID <{reg}>')
