@@ -1,8 +1,9 @@
 ## Coding rules
 
-The coding rules have been limited to the most basic rules that apply to 
-an programming language. Good programming involves far more. But if you 
-follow these basic rules, your code will automatically be of high quality. 
+Those coding rules have been limited to the what I think are the most basic 
+rules that apply to any programming language. Good programming involves far 
+more. But if you follow these basic rules, your code will automatically be 
+of high quality. 
 
 1 Write code for humans not for computers
 * 1a write self-explanatory and speaking code 
