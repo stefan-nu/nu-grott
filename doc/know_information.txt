@@ -1,0 +1,98 @@
+This document collects some useful information about the Growatt communication
+protocol and how it is processed by nu-grott
+
+
+Record Types
+
+03	unknown (kommt bei mir vor)
+04	my inverter
+18  
+1b	smart meter
+1e	smart meter
+20	smart meter
+37	my inverter
+50	historical inverter buffered
+
+
+
+
+Protocol Types
+
+02	unencrypted data ohne crc
+05	encrypted   data mit  16bit crc 
+06	encrypted   data mit  16bit crc 
+
+
+
+Device Numbers
+
+01 shinewifi or shinelan
+5x shinelink
+
+
+
+
+Header layout
+
+a header is 8 bytes long
+thus 16 hex strings
+
+A header starts with a fixed value \x00\x0d\x00 ?
+
+Byte    Hex    Meaning     typical value
+0 		 0:  2 unknown1    = 00 
+1 		 2:  4 unknown2    = 01,02,03,0f,10,15,1a,1e 
+2 		 4:  6 unknown3    = 00
+3 		 6:  8 protocol    = 06
+4,5 	 8: 12 content_len big endian format
+6		12: 14 deviceno    = 01
+7		15: 16 type/cmd    = 03,16,19
+
+
+Header example
+0001000600240119
+0001000600250119
+0001000600260119
+0002000600030103
+00020006033f0103
+0003000600200116
+000f000600200116
+0010000600200116
+0015000600200116
+001a000600200116
+001e000600200116
+
+
+
+Msg Type - Message Layout             - Checksum
+
+02       - Header + Content   none
+05       - Header + encrypted Content   16bit
+06       - Header + encrypted Content   16bit
+
+
+Crc is calculated over header and encrypted data
+Header and CRC itself is not encrypted
+
+Layout means a string of the format
+
+T010203
+T  - starting character is always T
+01 - protocol
+02 - device number 
+03 - record type
+
+
+
+Unknown information
+
+ALO
+What is a registergroup
+
+ALO_3000_3124
+ALO_3125_3249
+ALO_3250_3280
+
+
+T060137 Layout (protocol 06, device 01, record type 37)
+

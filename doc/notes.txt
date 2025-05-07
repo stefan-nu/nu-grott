@@ -1,0 +1,25 @@
+Programmfluss
+
+start grott
+logging.basicConfig(level=logging.INFO,format=LOGGERFORMAT) # logging configurieren
+conf = Conf(VERREL) # default configuration setzen
+
+proxy = Proxy(conf) # Proxy mit Conf einrichten
+					# ruft Proxy.__init__ auf
+
+proxy.main(conf) # proxy starten
+
+input_list = []
+channel = {}
+
+self.input_list.append(self.server)
+
+while (1)
+
+ss = select.select # Interface to select interface
+
+on_accept # accept incoming network connection
+
+on_close # close network connection
+
+on_recv # when receiving a network packet
