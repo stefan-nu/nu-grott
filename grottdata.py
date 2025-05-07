@@ -8,15 +8,17 @@ import time
 #import sys
 #import struct
 import textwrap
-from itertools import cycle # to support "cycling" the iterator
+#from itertools import cycle # to support "cycling" the iterator
 import json
 import codecs
 from typing import Dict
 #import mqtt
 import paho.mqtt.publish as publish
 
-#set logging
+from utils import decrypt,  convert2bool, format_multi_line #, crypt, encrypt, byte_decrypt, to_hexstring
+
 logger = logging.getLogger(__name__)
+
 
 class GrottPvOutLimit:
     """limit the amount of request sent to pvoutput"""
@@ -40,62 +42,6 @@ class GrottPvOutLimit:
 
 pvout_limit = GrottPvOutLimit()
 
-
-# Formats multi-line string 
-def format_multi_line(prefix, string, size=80):
-    size -= len(prefix)
-    if isinstance(string, bytes):
-        string = ''.join(r'\x{:02x}'.format(byte) for byte in string)
-        if size % 2:
-            size -= 1
-    return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
-
-
-def decrypt(encrypted_binary_data):
-    decrypted_binary_data = crypt(encrypted_binary_data)
-    decrypted_string = "".join("{:02x}".format(n) for n in decrypted_binary_data)
-    return decrypted_string
-
-
-def encrypt(decrypted_binary_data):
-    encrypted_binary_data = crypt(decrypted_binary_data)
-    encrypted_string = "".join("{:02x}".format(n) for n in encrypted_binary_data)
-    return encrypted_string
-
-
-def crypt(encrypted_binary_data):
-    len_data = len(encrypted_binary_data)
-
-    NUM_UNENCRYTED_BYTES = 8 # number of leading unencrypted bytes
-    num_encrypted_bytes  = len_data - NUM_UNENCRYTED_BYTES
-
-    KEY_ASCII = "Growatt"
-    key_hex   = ['{:02x}'.format(ord(x)) for x in KEY_ASCII]
-    LEN_KEY   = len(key_hex)
-
-    decrypted_binary_data = list(encrypted_binary_data[0 : NUM_UNENCRYTED_BYTES])
-        
-    for i in range(0, num_encrypted_bytes) :
-        j = i % LEN_KEY
-        decrypted_byte = [encrypted_binary_data[i+8] ^ int(key_hex[j], 16)]
-        decrypted_binary_data += decrypted_byte
-
-    return decrypted_binary_data
-
-
-# \todo this function lies, it test not only strings but also booleans and integers 
-## test if the provided value can be interpreted as a boolean value
-#  if so the corresponding boolean is returned otherwise None
-def str2bool(defstr):
-    """Convert provided input value to bool """
-    
-    # check if provided parameter is a boolean
-    if isinstance(defstr, (int)) : return defstr.__bool__()
-    
-    # check if provided string can be assigned to a boolean
-    string_to_test = defstr.lower()
-    if string_to_test in ("true",  "yes", "y", "1") : return True 
-    if string_to_test in ("false", "no",  "n", "0") : return False
 
 
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
@@ -257,7 +203,7 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
                 # no valid record fall back on old processing?
                 logger.debug("no matching generic inverter record layout found")
                 layout = "none"
-                
+
         # test smartmeter layout
         if recordtype in conf.smartmeterrec:
             print(layout)
