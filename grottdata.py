@@ -167,7 +167,7 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
                 try:
                     test = conf.alodict[grplayout]
                 except:
-                    logger.warning("layout file doesnot exist, and will not be processed: %s",grplayout)
+                    logger.warning("layout file does not exist, and will not be processed: %s",grplayout)
                     break
 
                 for keyword in conf.alodict[grplayout] :
@@ -221,11 +221,10 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
     return(layout, result_string)
 
 
-def procdata(conf, data):
-    # (re)set loglevel
+def process_data(conf, data):
     logger.setLevel(conf.loglevel.upper())
-    print() # add a newline to visually indicate a new record starts here
-    logger.info ("Data processing started")
+    # print() # add a newline to visually indicate a new record starts here
+    logger.debug("start data processing")
 
     header     = "".join("{:02x}".format(n) for n in data[0:8])
     #buffered  = "nodetect"    # set buffer detection to nodetect (for compat mode), will in auto detection be changed to no or yes
@@ -335,8 +334,8 @@ def procdata(conf, data):
                         else : 
                             defined_key[keyword] = 0
             except:
-                if conf.verbose : print("\t - grottdata - error in keyword processing : ", keyword + " ,data processing stopped")
-                #return(8)
+                if conf.verbose : print("\t - utils - error in keyword processing : ", keyword + " ,data processing stopped")
+
 
     # test if pvserial was defined, if not take inverterid from config
     device_defined = False
@@ -411,8 +410,8 @@ def procdata(conf, data):
             for key in defined_key :
                 # test if there is specified a divide factor
                 try:
-                    #print(keyword)
                     keydivide = conf.recorddict[layout][key]["divide"]
+                    #print(keyword)
                     #print(keydivide)
                 except:
                     #print("error")
@@ -422,15 +421,16 @@ def procdata(conf, data):
                     printkey = "{:.1f}".format(defined_key[key]/keydivide)
                 else :
                     printkey = defined_key[key]
-                print("\t\t - ",key.ljust(30) + " : ",printkey)
+                print("\t\t - ",key.ljust(30) + " : ", printkey)
 
-        # create JSON message  (first create obj dict and then convert to a JSON message)
+        # create JSON message (first create obj dict and then convert to a JSON message)
 
-        # filter invalid 0120 record (0 < voltage_l1 > 500 )
+        # only process records of type 0120 if they have a voltage in the range of 0 .. 500V
         record_type = header[14:16]
         if record_type == "20" :
-            if (defined_key["voltage_l1"]/10 > 500) or (defined_key["voltage_l1"]/10 < 0) :
-                print("\t - " + "Grott invalid 0120 record processing stopped")
+            real_voltage = defined_key["voltage_l1"]/10
+            if (real_voltage > 500) or (real_voltage < 0) :
+                print("\t - " + "invalid 0120 record processing stopped")
                 return
 
         # v270
@@ -519,7 +519,9 @@ def procdata(conf, data):
                 # Will print a line for the refusal in verbose mode (see GrottPvOutLimit at the top)
                 return
             
-            if conf.verbose : print("\t - " + "Grott send data to PVOutput systemid: ", pvssid, "for inverter: ", defined_key["pvserial"])
+            if conf.verbose : 
+                print("\t - " + "send data to PVOutput systemid: ", pvssid, "for inverter: ", defined_key["pvserial"])
+                
             pvheader = {
                 "X-Pvoutput-Apikey"   : conf.pvapikey,
                 "X-Pvoutput-SystemId" : pvssid
@@ -549,25 +551,22 @@ def procdata(conf, data):
                     "v6"    : grid_voltage_avg
                 }
                 if not conf.pvdisv1 :                    
-                    pv_energy_today = defined_key["epvtoday"]
-                    pvdata["v1"] = pv_energy_today * 100 
+                    pvdata["v1"]    = defined_key["pvenergytoday"] * 100 
                 else:
-                    if conf.verbose : print("\t - " + "Grott PVOutput send V1 disabled")
+                    if conf.verbose : 
+                        print("\t - " + "PVOutput send V1 disabled")
 
                 if conf.pvtemp :
                     pv_temp = defined_key["pvtemperature"]
                     pvdata["v5"] = pv_temp / 10
 
-                # print(pvdata)
-                #if conf.verbose : 
-                print("\t\t - ", pvheader)
-                #if conf.verbose : 
-                print("\t\t - ", pvdata)
                 reqret = requests.post(conf.pvurl, data = pvdata, headers = pvheader)
-                #if conf.verbose : 
-                print("\t - " + "Grott PVOutput response: ")
-                #if conf.verbose : 
-                print("\t\t - ", reqret.text)
+              
+                if conf.verbose : 
+                    print("\t\t - ", pvheader)
+                    print("\t\t - ", pvdata)
+                    print("\t - " + "Grott PVOutput response: ")
+                    print("\t\t - ", reqret.text)
                 
             else: # record is from a smart meter
                 # values are seprated in several packets because PVoutput does not accept them combined
@@ -589,16 +588,17 @@ def procdata(conf, data):
                     }
                 #  "v4"  : defined_key["pos_act_power"]/10,     # power consumption
                     
-                #print(pvheader)
-                if conf.verbose : print("\t\t - ", pvheader)
-                if conf.verbose : print("\t\t - ", pvdata1)
-                if conf.verbose : print("\t\t - ", pvdata2)
-                reqret = requests.post(conf.pvurl, data = pvdata1, headers = pvheader)
-                if conf.verbose : print("\t - " + "Grott PVOutput response SM1: ")
-                if conf.verbose : print("\t\t - ", reqret.text)
-                reqret = requests.post(conf.pvurl, data = pvdata2, headers = pvheader)
-                if conf.verbose : print("\t - " + "Grott PVOutput response SM2: ")
-                if conf.verbose : print("\t\t - ", reqret.text)
+                reqret1 = requests.post(conf.pvurl, data = pvdata1, headers = pvheader)
+                reqret2 = requests.post(conf.pvurl, data = pvdata2, headers = pvheader)
+
+                if conf.verbose : 
+                    print("\t\t - ", pvheader)
+                    print("\t\t - ", pvdata1)
+                    print("\t\t - ", pvdata2)
+                    print("\t - " + "PVOutput response SM1: ")
+                    print("\t\t - ", reqret1.text)
+                    print("\t - " + "PVOutput response SM2: ")
+                    print("\t\t - ", reqret2.text)
         else:
             if conf.verbose : print("\t - " + "Grott Send data to PVOutput disabled ")
 
@@ -632,7 +632,7 @@ def procdata(conf, data):
         ifdt = utc_dt.strftime ("%Y-%m-%dT%H:%M:%S")
         if conf.verbose :  print("\t - " + "Grott original time : ",jsondate,"adjusted UTC time for influx : ",ifdt)
 
-        # prepare influx jsonmsg dictionary
+        # prepare influx json msg dictionary
 
         # if record is a smart monitor record use datalogserial as measurement (to distinguish from solar record)
         if header[14:16] != "20" :
@@ -657,7 +657,6 @@ def procdata(conf, data):
 
         print("\t - " + "Grott influxdb jsonmsg: ")
         print(format_multi_line("\t\t\t ", str(ifjson)))
-        #if conf.verbose :  print("\t - " + "Grott InfluxDB publishing started")
 
         try:
             if (conf.influx2):
@@ -668,40 +667,29 @@ def procdata(conf, data):
                 ifresult = conf.influxclient.write_points(ifjson)
 
         except Exception as e:
-            # if  conf.verbose:
-                print("\t - " + "Grott InfluxDB error ")
-                print(e)
-                raise SystemExit("Grott Influxdb write error, grott will be stopped")
-
-    #else:
-    #   if conf.verbose : print("\t - " + "Grott Send data to Influx disabled ")
+            print("\t - " + "InfluxDB error ")
+            print(e)
+            raise SystemExit("Influxdb write error, nu-grott will be stopped")
 
     if conf.extension :
-
         if conf.verbose :  
-            print("\t - " + "Grott extension processing started : ", conf.extname)
+            print("\t - " + "extension processing started : ", conf.extname)
         import importlib
         try:
             module = importlib.import_module(conf.extname, package = None)
         except :
-            if conf.verbose : print("\t - " + "Grott import extension failed:", conf.extname)
+            if conf.verbose : print("\t - " + "import extension failed:", conf.extname)
             return
 
         try:
             ext_result = module.grottext(conf,result_string,jsonmsg)
             if conf.verbose :
-                print("\t - " + "Grott extension processing ended : ", ext_result)
+                print("\t - " + "extension processing ended : ", ext_result)
         except Exception as e:
-            print("\t - " + "Grott extension processing error:", repr(e))
+            print("\t - " + "extension processing error:", repr(e))
             if conf.verbose:
                 import traceback
                 print("\t - " + traceback.format_exc())
-            #print("\t - " + "Grott extension processing error ")
-            #print(e)
-            #return
 
-        #if conf.verbose :
-            #print("\t - " + "Grott extension processing ended : ", ext_result)
-            ##print("\t -", ext_result)
     else:
             if conf.verbose : print("\t - " + "Grott extension processing disabled ")

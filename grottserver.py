@@ -2,7 +2,7 @@ import select
 import socket
 import queue
 import textwrap
-#import libscrc
+import libscrc
 import threading
 import time
 import http.server
@@ -13,8 +13,8 @@ from datetime import datetime
 from urllib.parse import urlparse, parse_qs, parse_qsl
 from collections import defaultdict
 import logging
-import os,psutil
-from grottdata import procdata
+import os, psutil
+
 
 #set logging definities
 #logging.basicConfig(level=logging.INFO)
@@ -74,18 +74,19 @@ class Miniconf:
 
     def __init__(self, vrmserver):
             """set default configuration settings"""
-            self.verrel = vrmserver
-            self.loglevel = "DEBUG"
-            self.verbose = True
-            self.mode = "serversa"
-            self.serverpassthrough = False
-            self.serverip = "0.0.0.0"
-            self.serverport = 5781
-            #self.serverip = "0.0.0.0"
-            self.httpport = 5782
-            self.apirespwait = 0.1                                                                  #Time to sleep waiting on API response
-            self.inverterrespwait = 10                                                              #Totaal time in seconds to wait on Iverter Response
+            self.verrel             = vrmserver
+            self.loglevel           = "DEBUG"
+            self.verbose            = True
+            self.mode               = "serversa"
+            self.serverpassthrough  = False
+            self.serverip           = "0.0.0.0"
+            self.serverport         = 5781
+            #self.serverip          = "0.0.0.0"
+            self.httpport           = 5782
+            self.apirespwait        = 0.1   # Time to sleep waiting on API response
+            self.inverterrespwait   = 10    # time in seconds to wait on Iverter Response
             self.dataloggerrespwait = 5
+
 
 # Formats multi-line data
 def format_multi_line(prefix, string, size=80):
@@ -98,9 +99,9 @@ def format_multi_line(prefix, string, size=80):
 
 
 # encrypt / decrypt data.
-def decrypt(decdata):
+def decrypt(encrypted_data):
 
-    ndecdata = len(decdata)
+    ndecdata = len(encrypted_data)
 
     # Create mask and convert to hexadecimal
     mask = "Growatt"
@@ -108,15 +109,16 @@ def decrypt(decdata):
     nmask = len(hex_mask)
 
     # start decrypt routine
-    unscrambled = list(decdata[0:8])  # take unscramble header
+    unscrambled = list(encrypted_data[0:8])  # take unscramble header
 
     for i, j in zip(range(0, ndecdata-8), cycle(range(0, nmask))):
-        unscrambled = unscrambled + [decdata[i+8] ^ int(hex_mask[j], 16)]
+        unscrambled = unscrambled + [encrypted_data[i+8] ^ int(hex_mask[j], 16)]
 
     result_string = "".join("{:02x}".format(n) for n in unscrambled)
 
     logger.debugv("\t - " + "Grott - data decrypted V2")
     return result_string
+
 
 def calc_crc(data):
     #calculate CR16, Modbus.
@@ -159,6 +161,7 @@ def validate_record(xdata):
         returncc = 8
 
     return(returncc)
+
 
 def htmlsendresp(self, responserc, responseheader, responsetxt) :
         #send response
@@ -1236,7 +1239,7 @@ class sendrecvserver:
 
     def process_data_record(self,conf,data):
         """this routine will process the growatt datarecords"""
-        procdata(conf,data)
+        process_data(conf,data)
         logger.debug("process_data_record initiated")
         returncc = 0
         return(returncc)

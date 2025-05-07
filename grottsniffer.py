@@ -7,7 +7,6 @@ import struct
 #from itertools import cycle # to support "cycling" the iterator
 #import time, json, datetime, codecs
 
-from grottdata import procdata
 
 class Sniff:
     def __init__(self,conf):
@@ -53,7 +52,7 @@ class Sniff:
                             print("\t\t\t - " + 'RST: {}, SYN: {}, FIN:{}'.format(self.tcp.flag_rst, self.tcp.flag_syn, self.tcp.flag_fin))
 
                         if len(self.tcp.data) > conf.minrecl :
-                            procdata(conf,self.tcp.data)    
+                            process_data(conf,self.tcp.data)    
                         else:     
                             if conf.verbose: print("\t - " + 'Data less then minimum record length, data not processed') 
                             
@@ -82,21 +81,21 @@ class Ethernet:
         dest, src, prototype = struct.unpack('! 6s 6s H', raw_data[:14])
 
         self.dest_mac = get_mac_addr(dest)
-        self.src_mac = get_mac_addr(src)
-        self.proto = socket.htons(prototype)
-        self.data = raw_data[14:]
+        self.src_mac  = get_mac_addr(src)
+        self.proto    = socket.htons(prototype)
+        self.data     = raw_data[14:]
 
 #Unpacks IPV4 packet
 class IPv4:
 
     def __init__(self, raw_data):
         version_header_length = raw_data[0]
-        self.version = version_header_length >> 4
-        self.header_length = (version_header_length & 15) * 4
+        self.version          =  version_header_length >> 4
+        self.header_length    = (version_header_length & 15) * 4
         self.ttl, self.proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', raw_data[:20])
-        self.src = self.ipv4addr(src)
+        self.src    = self.ipv4addr(src)
         self.target = self.ipv4addr(target)
-        self.data = raw_data[self.header_length:]
+        self.data   = raw_data[self.header_length:]
 
 # Returns properly formatted IPv4 address
     def ipv4addr(self, addr):
@@ -111,8 +110,8 @@ class TCP:
         offset = (offset_reserved_flags >> 12) * 4
         self.flag_urg = (offset_reserved_flags & 32) >> 5
         self.flag_ack = (offset_reserved_flags & 16) >> 4
-        self.flag_psh = (offset_reserved_flags & 8) >> 3
-        self.flag_rst = (offset_reserved_flags & 4) >> 2
-        self.flag_syn = (offset_reserved_flags & 2) >> 1
+        self.flag_psh = (offset_reserved_flags &  8) >> 3
+        self.flag_rst = (offset_reserved_flags &  4) >> 2
+        self.flag_syn = (offset_reserved_flags &  2) >> 1
         self.flag_fin = offset_reserved_flags & 1
         self.data = raw_data[offset:]    

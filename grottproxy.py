@@ -26,28 +26,58 @@ buffer_size = 4096
 delay = 0.0002
 
 
+def decode_header(header_str):
+    header_len = len(header_str)
+
+    unknown1 = header_str[ 0: 2]
+    unknown2 = header_str[ 2: 4]
+    unknown3 = header_str[ 4: 6]
+    protocol = header_str[ 6: 8]
+    data_len = header_str[ 8:12]
+    device   = header_str[12:14]
+    rec_type = header_str[14:16] # aka command
+    
+    print("header   : ", header_str)
+    print("unknown1 : ", unknown1)
+    print("unknown2 : ", unknown2)
+    print("unknown3 : ", unknown3)
+    print("protocol : ", protocol)
+    print("data_len : ", data_len)
+    print("device   : ", device)
+    print("rec_type : ", rec_type)
+    return 0
 
 
 """ validata data record on length and CRC (for "05" and "06" records)"""
+# if record is valid           return 0
+# if record has invalid crc    return 8 
+# if record has invalid length return 8 
 def validate_record(xdata):
-
-    #logger.debug("Data record validation started")
     
     data             = bytes.fromhex(xdata)
     len_data         = len(data)
-    len_from_payload = int.from_bytes(data[4:6],"big")
-    header           = "".join("{:02x}".format(n) for n in data[0:8])
+    len_from_payload = int.from_bytes(data[4:6], "big")
+    HEADER_SIZE      = 8 # all known messages use an 8 byte header
+    header           = "".join("{:02x}".format(n) for n in data[0 : HEADER_SIZE])
     protocol         = header[6:8]
-    return_msg       = "ok"
-    crc              = 0
+    
+    # decrypted = decrypt(data)
+    # print("xdata    : ", xdata)
+    # print("data     : ", data)
+    # print("decrypted: ", decrypted)
+    # print("msg_len  : ", len_data)
+    # print("data_len : ", len_data-8)
+    # print("len_from_payload:", len_from_payload)
+    # decode_header(header)
 
+    crc = 0
     if protocol in ("05", "06"):
-        len_crc = 4
+        len_crc = 4 # SN better use 2 as CRC is 2 bytes long
         crc     = int.from_bytes(data[len_data - 2 : len_data], "big")
     else:
-        len_crc = 0
+        len_crc = 0 # SN: this makes no sense as it does only apply to protocol 02
 
-    len_real_payload = (len_data * 2 - 12 - len_crc) / 2
+    len_real_payload = (len_data * 2 - 12 - len_crc) / 2 # length in bytes
 
     if protocol != "02":
         try:
@@ -55,16 +85,18 @@ def validate_record(xdata):
         except:
             crc_calc = crc = 0 # why is this needed ?
 
+    check_result = "ok"
+    check_code   = 0
+    
     if len_real_payload == len_from_payload:
-        return_cc = 0
         if protocol != "02" and crc != crc_calc:
-            return_msg = "data record crc error"
-            return_cc  = 8
+            check_result = "data record has invalid crc"
+            check_code   = 8
     else :
-        return_msg = "data record length error"
-        return_cc  = 8
+        check_result = "data record has invalid length"
+        check_code   = 8
 
-    return(return_cc, return_msg)
+    return(check_code, check_result)
 
 
 """"DEFINE FORWARD CONNECTION"""
@@ -91,7 +123,7 @@ class Proxy:
 
 
     def __init__(self, conf):
-        #set loglevel
+
         logger.setLevel(conf.loglevel.upper())
         conf.vrmproxy = vrmproxy
         logger.info("Grott proxy mode started, version: %s", conf.vrmproxy)
@@ -99,10 +131,10 @@ class Proxy:
         ## to resolve errno 32: broken pipe issue (Linux only)
         if sys.platform != 'win32':
             signal(SIGPIPE, SIG_DFL)
-        #
+        
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #set default grottip address
+        # set default grottip address
         if conf.grottip == "default" :
             conf.grottip = '0.0.0.0'
         self.server.bind((conf.grottip, conf.grottport))
@@ -124,12 +156,12 @@ class Proxy:
 
         self.input_list.append(self.server)
         while 1:
-            time.sleep(delay)
+            time.sleep(delay) # \todo better run code triggered by interrupt
             ss = select.select
             inputready, outputready, exceptready = ss(self.input_list, [], [])
             for self.s in inputready:
                 if self.s == self.server:
-                    self.on_accept()
+                    self.open_connection()
                     break
                 try:
                     # read buffer until empty
@@ -144,10 +176,11 @@ class Proxy:
                 except Exception as e:
                     logger.warning("Connection error: %s", e)
                     logger.debug("Socket info:\n\t %s", self.s)
-                    self.on_close()
+                    self.close_connection()
                     break
+                
                 if len(msg_buffer) == 0:
-                    self.on_close()
+                    self.close_connection()
                     break
                 else:
                     # split buffer if contain multiple records
@@ -164,7 +197,7 @@ class Proxy:
                     while rec_length <= buf_length:
                         logger.debugv("Received buffer:\n{0} \n".format(format_multi_line("\t", msg_buffer, 120)))
                         self.data = msg_buffer[0:rec_length]
-                        self.on_recv(conf)
+                        self.process_received_data(conf)
                         if buf_length > rec_length :
                             logger.debug("handle_readble_socket, Multiple records in buffer, process next message in buffer")
                             msg_buffer       = msg_buffer[rec_length : buf_length]
@@ -181,7 +214,7 @@ class Proxy:
 
 
     """accept new connection"""
-    def on_accept(self):
+    def open_connection(self):
 
         forward = Forward().start(self.forward_to[0], self.forward_to[1])
         clientsock, clientaddr = self.server.accept()
@@ -192,13 +225,13 @@ class Proxy:
             self.channel[clientsock] = forward
             self.channel[forward]    = clientsock
         else:
-            logger.warning("Can't establish connection with remote server")
-            logger.warning("Closing connection with client side: %s", clientaddr)
+            logger.warning("can't establish connection with remote server")
+            logger.warning("closing connection with client side: %s", clientaddr)
             clientsock.close()
 
 
     """close connection"""
-    def on_close(self):
+    def close_connection(self):
 
         logger.info("Close connection requested for: %s",self.s)
         # try / except to resolve errno 107: Transport endpoint is not connected
@@ -224,33 +257,32 @@ class Proxy:
 
 
     """process received data"""
-    def on_recv(self,conf):
+    def process_received_data(self, conf):
         
-        data = self.data
-        #logger.debug("Growatt packet received:")
-        logger.debug(" - %s", self.channel[self.s])
+        data_bin = self.data # create local copy of binary data
+        logger.debug(" - %s", self.channel[self.s]) # show socket where data_bin originates from
         
         # test if record is not corrupted
-        vdata = "".join("{:02x}".format(n) for n in data)
-        validatecc = validate_record(vdata)
+        data_string = "".join("{:02x}".format(n) for n in data_bin)
+        validatecc  = validate_record(data_string)
         if validatecc[0] != 0 :
-            logger.warning("Invalid data record received: %s, processing stopped for this record", validatecc[1])
-            logger.debugv("Original data:\n{0} \n".format(format_multi_line("\t", self.data, 120)))
-            # Create response if needed?
+            logger.warning("invalid data_bin record received: %s, ignore record", validatecc[1])
+            logger.debugv("original data_bin:\n{0} \n".format(format_multi_line("\t", self.data, 120)))
             return
         
-        # FILTER Detect if configure data is sent
+        # FILTER Detect if configure data_bin is sent
         if conf.blockcmd :
-            #standard everything is blocked!
-            logger.debug("Command block checking started")
+            # by default all received commands are blocked
+            logger.debug("checking if received command is to be blocked")
             blockflag = True
             
             # partly block configure Shine commands
-            if self.header[14:16] == "18" :
+            cmd = self.header[14:16]
+            if cmd == "18" :
                 if conf.blockcmd :
                     if self.protocol == "05" or self.protocol == "06" :
-                        confdata = decrypt(data)
-                    else :  confdata = data
+                        confdata = decrypt(data_bin)
+                    else :  confdata = data_bin
                     
                     # get conf command (location depends on record type), maybe later more flexibility is needed
                     if self.protocol == "06" :
@@ -271,22 +303,23 @@ class Proxy:
                         logger.debug("Inverter Configure command detected")
                         
             # allow records
+            record_num = self.header[12:16] # 12-13 deviveno 14-15 recordtype
             if self.header[12:16] in conf.recwl :
                 blockflag = False
-                logger.debug("Record not blocked, while in exception list: %s ", self.header[12:16])
+                logger.info("record forwarded, as it is whitelisted: %s ", self.header[12:16])
 
             if blockflag :
-                logger.info("Record blocked: %s", self.header[12:16])
+                logger.info("record blocked: %s", self.header[12:16])
                 if self.protocol == "05" or self.protocol == "06" :
-                    blockeddata = decrypt(data)
+                    blockeddata = decrypt(data_bin)
                 else :  
-                    blockeddata = data
+                    blockeddata = data_bin
                 logger.debugv("\n{0} \n".format(format_multi_line("\t", blockeddata, 120)))
                 return
 
-        # send data to destination
-        self.channel[self.s].send(data)
-        if len(data) > conf.minrecl :
-            procdata(conf, data) # process received data
+        # send message to inverter
+        self.channel[self.s].send(data_bin)
+        if len(data_bin) > conf.minrecl :
+            process_data(conf, data_bin)
         #else:
-        #    logger.debug("Data less than minimum record length, data not processed")
+            logger.debug("Data less than minimum record length, data_bin not processed")

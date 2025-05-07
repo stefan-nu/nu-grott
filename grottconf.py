@@ -6,27 +6,28 @@ import ipaddress
 from os import walk
 from utils import format_multi_line, convert2bool
 import logging
+from test import test_cmd_line
 
 # logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-vrmconf = "3.1.0_20250406"
+vrmconf = "3.1.0"
 
 
 class Conf :
-    """define/proces grott configuration settings"""
+    """define/proces nu-grott configuration settings"""
     
     def __init__(self, vrm):
         """"Init Configuration"""
         
-        logger.info("Config Processing Started")
+        logger.debug("Config Processing Started")
         
         # Set parmameters in the order of priority
         # if a parameter is defined at multiple places the one with highest
         # priority will be used
         #
-        # 1. Command line parms 
-        # 2. env. variables 
-        # 3. config file 
+        # 1. command line parameter 
+        # 2. environment variables 
+        # 3. config file (usually grott.ini) 
         # 4. program default
         
         # Set default values for the command line parmarameters
@@ -40,15 +41,15 @@ class Conf :
         self.loglevel  = "INFO"
         self.cfgfile   = "grott.ini"
         
-        self.parserinit()
-        self.defaultconf()    # Set default config
-        self.procconf()       # Process config file
-        self.procenv()        # Process environmental variable    
-        self.confpost()       # Process variables to override/correct config and environmental settings       
-        self.resetdebuglevel()
+        self.parse_cmd_line_parameters()
+        self.set_default_config() 
+        self.process_config_file()  
+        self.process_env_variables()         
+        self.post_process_configuration() # override/correct configuration       
+        self.reset_debug_level()
         
         # print configuration
-        self.print() # \todo use logger instead of print
+        #self.print() # \todo use logger instead of print
 
         # process not if in standalone mode‚
         if self.mode not in ["serversa"]:
@@ -60,7 +61,7 @@ class Conf :
             self.set_reclayouts()
 
             # define record whitlist (if blocking / filtering enabled
-            self.set_recwl()
+            self.set_record_whitelist()
 
             # ‚prepare influxDB
             if self.influx :
@@ -71,90 +72,90 @@ class Conf :
                     raise SystemExit()
                 else :
                     self.influx = False
-                    logger.warning("%s, Grott procesing will continue without InfluxDB", returncc[1])
-                    #logger.warning(returncc[1] + ", Grott procesing will continue without InfluxDB")
+                    logger.warning("%s, data procesing will continue without InfluxDB", returncc[1])
+                    #logger.warning(returncc[1] + ", procesing will continue without InfluxDB")
 
 
-    def defaultconf(self) :
+    def set_default_config(self) :
         """set config defaults"""
         
         #define parameters dictionary :
-        #format self.parm[parm] = {"type" : parmtype,"value": parmvalue, "environ" : environ_var/none, "show" : show,noshow]
-        #use addparm(self,type,parm,value,environ=None,show=True) :
+        #format self.parm[parm] = {"type" : parmtype, "value": parmvalue, "environ" : environ_var/none, "show" : show,noshow]
+        #use add_parm(self, type, parm, value, environ=None, show=True) :
         self.parm = dict()
         #define parmtype / sections in parmlib be aware hardcoded will be ignorded from parmlib
         self.parmtype = ["Info","Hardcoded","Generic","Growatt","Server","MQTT","PVOutput","influx","extension"]
         
         ### Set fixed variables (not changable with .ini or environmental variables)
-        self.addparm("Info", "verrel",       self.verrel   )
-        self.addparm("Info", "verrelconf",   vrmconf       )
-        self.addparm("Info", "verreldata",   self.vrmdata  )
-        self.addparm("Info", "verrelproxy",  self.vrmproxy )
-        self.addparm("Info", "verrelsniff",  self.vrmsniff )
-        self.addparm("Info", "verrelserver", self.vrmserver)
+        self.add_parm("Info", "verrel",       self.verrel   )
+        self.add_parm("Info", "verrelconf",   vrmconf       )
+        self.add_parm("Info", "verreldata",   self.vrmdata  )
+        self.add_parm("Info", "verrelproxy",  self.vrmproxy )
+        self.add_parm("Info", "verrelsniff",  self.vrmsniff )
+        self.add_parm("Info", "verrelserver", self.vrmserver)
         
         # set changeable variables (in .ini or environmentals:
-        self.addparm("Hardcoded", "datarec",       ["04","50"]     ) # recordtypes for inverter data processing
-        self.addparm("Hardcoded", "smartmeterrec", ["1b","20","1e"]) # recordtypes for inverter data processing
-        self.addparm("Hardcoded", "mindatarec",     12             ) # deprecated, minimal datarecord length that can be processed (no ack record!)
-        self.addparm("Hardcoded", "inverterid",    "automatic"     ) # since 3.0.0. invertid cannot be changed anymore, only there for compatability
-        self.addparm("Hardcoded", "outfile",       "sys.stdout"    ) # standard sysout, can only be overwritten at startup
+        self.add_parm("Hardcoded", "datarec",       ["04","50"]     ) # recordtypes for inverter data processing
+        self.add_parm("Hardcoded", "smartmeterrec", ["1b","20","1e"]) # recordtypes for inverter data processing
+        self.add_parm("Hardcoded", "mindatarec",     12             ) # deprecated, minimal datarecord length that can be processed (no ack record!)
+        self.add_parm("Hardcoded", "inverterid",    "automatic"     ) # since 3.0.0. invertid cannot be changed anymore, only there for compatability
+        self.add_parm("Hardcoded", "outfile",       "sys.stdout"    ) # standard sysout, can only be overwritten at startup
         
-        ###Set default variables
-        self.addparm("Generic", "verbose",    self.verbose, "gverbose"   ) # 3.0.0 not recommended use loglevel!
-        self.addparm("Generic", "loglevel",   self.loglevel,"gloglevel"  ) # Standard python logging level: DEBUG,INFO,WARNING,ERROR,CRITICAL added DEBUGV (debug verbose+)
-        self.addparm("Generic", "cfgfile",    self.cfgfile               ) # config file can only be set via startup parameter
-        self.addparm("Generic", "minrecl",    100,          "gminrecl"   ) # specify lower minrecl (e.g. minrecl = 1) to log / debug all records. minrecl = 100 will supress most of commincation records except data related records
-        self.addparm("Generic", "invtype",    "auto",       "ginvtype"   ) # specify invertype:  default (use standard tl-s type of inverters, automatic (>3.0.0, lets grott automatically detect),spf, sph, mod etc use specific invertypes)
-        self.addparm("Generic", "invtypemap", "{}",         "ginvtypemap") # define invertype setting for multiple servers {"invertid" : "invtype", "invertid1" : "invtype1", }
-        self.addparm("Generic", "includeall", "False",      "gincludeall") # Include all defined keys from layout (also incl = no)
-        self.addparm("Generic", "blockcmd",   "False",      "gblockcmd"  ) # Block growatt inverter and Shine configure commands
-        self.addparm("Generic", "noipf",      False,        "gnoipf"     ) # Allow IP change if needed (not recommend setting, only use this for short time)
-        self.addparm("Generic", "gtime",      "auto",       "gtime"      ) # time used =  auto: use record time or if not valid server time, alternative server: use always server time 3.0.0 renamed conf.gtime to conf.time gtime set for compat reasons.
-        self.addparm("Generic", "time",       "auto",       "gtime"      )
+        ### Set default variables
+        self.add_parm("Generic", "verbose",    self.verbose, "gverbose"   ) # 3.0.0 not recommended use loglevel!
+        self.add_parm("Generic", "loglevel",   self.loglevel,"gloglevel"  ) # Standard python logging level: DEBUG,INFO,WARNING,ERROR,CRITICAL added DEBUGV (debug verbose+)
+        self.add_parm("Generic", "cfgfile",    self.cfgfile               ) # config file can only be set via startup parameter
+        self.add_parm("Generic", "minrecl",    100,          "gminrecl"   ) # specify lower minrecl (e.g. minrecl = 1) to log / debug all records. minrecl = 100 will supress most of commincation records except data related records
+        self.add_parm("Generic", "invtype",    "auto",       "ginvtype"   ) # specify invertype:  default (use standard tl-s type of inverters, automatic (>3.0.0, lets grott automatically detect),spf, sph, mod etc use specific invertypes)
+        self.add_parm("Generic", "invtypemap", "{}",         "ginvtypemap") # define invertype setting for multiple servers {"invertid" : "invtype", "invertid1" : "invtype1", }
+        self.add_parm("Generic", "includeall", "False",      "gincludeall") # Include all defined keys from layout (also incl = no)
+        self.add_parm("Generic", "blockcmd",   "False",      "gblockcmd"  ) # Block growatt inverter and Shine configure commands
+        self.add_parm("Generic", "noipf",      False,        "gnoipf"     ) # Allow IP change if needed (not recommend setting, only use this for short time)
+        self.add_parm("Generic", "gtime",      "auto",       "gtime"      ) # time used =  auto: use record time or if not valid server time, alternative server: use always server time 3.0.0 renamed conf.gtime to conf.time gtime set for compat reasons.
+        self.add_parm("Generic", "time",       "auto",       "gtime"      )
         
-        self.addparm("Generic", "sendbuf",   True,      "gsendbuf")  # enable / disable sending historical data from buffer
-        self.addparm("Generic", "mode",      "proxy",   "gmode")     # default mode
-        self.addparm("Generic", "grottport", 5279,      "grottport") # default grott port
-        self.addparm("Generic", "grottip",   "default", "ggrottip")  # default grott ip
-        self.addparm("Generic", "tmzone",    "local",   "gtmzone")   # timezone (at this moment only used for influxdb)
+        self.add_parm("Generic", "sendbuf",   True,      "gsendbuf")  # enable / disable sending historical data from buffer
+        self.add_parm("Generic", "mode",      "proxy",   "gmode")     # default mode
+        self.add_parm("Generic", "grottport", 5279,      "grottport") # default nu-grott port
+        self.add_parm("Generic", "grottip",   "default", "ggrottip")  # default nu-grott ip
+        self.add_parm("Generic", "tmzone",    "local",   "gtmzone")   # timezone (at this moment only used for influxdb)
         
         ### Growatt settings
         # self.growattip = "server.growatt.com"
         # For China:                     server-cn.growatt.com
         # For US:                        server-us.growatt.com
         # For Australia and New Zealand: server-au.growatt.com
-        self.addparm("Growatt","growattip",   "server.growatt.com", "ggrowattip")
-        self.addparm("Growatt","growattport", 5279,                 "ggrowattport")
+        self.add_parm("Growatt","growattip",   "server.growatt.com", "ggrowattip")
+        self.add_parm("Growatt","growattport", 5279,                 "ggrowattport")
         
         ### Grottserver settings
-        self.addparm("Server", "serverip",          "0.0.0.0", "gserverip")
-        self.addparm("Server", "serverport",         5781,     "gserverport")
-        self.addparm("Server", "serverpassthrough", False,     "gserverpassthrough")  # pass data to growatt
+        self.add_parm("Server", "serverip",          "0.0.0.0", "gserverip")
+        self.add_parm("Server", "serverport",         5781,     "gserverport")
+        self.add_parm("Server", "serverpassthrough", False,     "gserverpassthrough")  # pass data to growatt
         
         # httpserver
-        self.addparm("Server", "httpport",           5782, "ghttpport")
-        self.addparm("Server", "apirespwait",         0.5, "gapirespwait")        # time to sleep waiting on API response
-        self.addparm("Server", "inverterrespwait",     10, "ginverterrespwait")   # time in seconds to wait on Inverter Response
-        self.addparm("Server", "dataloggerrespwait",    5, "gdataloggerrespwait") # time in seconds to wait on Datalogger Response
-        self.addparm("Server", "ConnectionTimeout",   200, "gConnectionTimeout")  # time in seconds to wait before a inactive session will be closed
+        self.add_parm("Server", "httpport",           5782, "ghttpport")
+        self.add_parm("Server", "apirespwait",         0.5, "gapirespwait")        # time to sleep waiting on API response
+        self.add_parm("Server", "inverterrespwait",     10, "ginverterrespwait")   # time in seconds to wait on Inverter Response
+        self.add_parm("Server", "dataloggerrespwait",    5, "gdataloggerrespwait") # time in seconds to wait on Datalogger Response
+        self.add_parm("Server", "ConnectionTimeout",   200, "gConnectionTimeout")  # time in seconds to wait before a inactive session will be closed
 
         ## MQTT Basic settings
-        self.addparm("MQTT", "nomqtt",     False,            "gnomqtt")
-        self.addparm("MQTT", "mqttip",     "localhost",      "gmqttip")
-        self.addparm("MQTT", "mqttport",   1883,             "gmqttport")
-        self.addparm("MQTT", "mqtttopic",  "energy/growatt", "gmqtttopic")
-        self.addparm("MQTT", "mqttretain", False,            "gmqttretain")
+        self.add_parm("MQTT", "nomqtt",     False,            "gnomqtt")
+        self.add_parm("MQTT", "mqttip",     "localhost",      "gmqttip")
+        self.add_parm("MQTT", "mqttport",   1883,             "gmqttport")
+        self.add_parm("MQTT", "mqtttopic",  "energy/growatt", "gmqtttopic")
+        self.add_parm("MQTT", "mqttretain", False,            "gmqttretain")
 
         #MQTT Security Settings
-        self.addparm("MQTT","mqttauth", False,         "mqttauth")
-        self.addparm("MQTT","mqttuser", "grott",       "gmqttuser")
-        self.addparm("MQTT","mqttpsw",  "growatt2020", "gmqttpsw","noshow")
+        self.add_parm("MQTT","mqttauth", False,         "mqttauth")
+        self.add_parm("MQTT","mqttuser", "grott",       "gmqttuser")
+        self.add_parm("MQTT","mqttpsw",  "growatt2020", "gmqttpsw","noshow")
         
         #MQTT Advanced Settings
-        self.addparm("MQTT", "mqttmtopic",          False,          "gmqttmtopic")
-        self.addparm("MQTT", "mqttmtopicname",      "energy/meter", "gmqttmtopicname")
-        self.addparm("MQTT", "mqttinverterintopic", False,          "gmqttinverterintopic")
+        self.add_parm("MQTT", "mqttmtopic",          False,          "gmqttmtopic")
+        self.add_parm("MQTT", "mqttmtopicname",      "energy/meter", "gmqttmtopicname")
+        self.add_parm("MQTT", "mqttinverterintopic", False,          "gmqttinverterintopic")
 
         # pvoutput default
         self.pvoutput        = False
@@ -182,31 +183,34 @@ class Conf :
         self.ifbucket = "grottdb"
 
         # extension
-        self.addparm("extension", "extension", False,             "gextension")
-        self.addparm("extension", "extname",   "grottext",        "gextname")
-        self.addparm("extension", "extvar",   '{"none": "none"}', "gextvar")
+        self.add_parm("extension", "extension", False,             "gextension")
+        self.add_parm("extension", "extname",   "grottext",        "gextname")
+        self.add_parm("extension", "extvar",   '{"none": "none"}', "gextvar")
 
         #self.extvar = {"ip": "localhost", "port":8000}
 
 
-    def resetdebuglevel(self):
-        if self.loglevel.upper() in ("DEBUG","DEBUGV") : 
-            self.changeparm("verbose",True)
+    def reset_debug_level(self):
+        if self.loglevel.upper() in ("DEBUG", "DEBUGV") : 
+            self.change_parm("verbose", True)
         elif self.verbose == True : 
-            self.changeparm("loglevel","DEBUG")
+            self.change_parm("loglevel", "DEBUG")
         logger.setLevel(self.loglevel.upper())
 
 
-    def addparm(self, type, parm, value, environ=None, show="show") :
-        # new parameter format conf.parm[parm] = {"type" : parmtype,"value": parmvalue, "environ" : environ_var/none, "show" : True/False}]
-        self.parm[parm] = {"type" : type,"value": value, "environ" : environ, "show" : show}
+    def add_parm(self, type, parm, value, environ=None, show="show") :
+        # new parameter format conf.parm[parm] = {"type" : parmtype, "value": parmvalue, "environ" : environ_var/none, "show" : True/False}]
+        self.parm[parm] = {"type" : type,
+                           "value"     : value,
+                           "environ"   : environ, 
+                           "show"      : show}
         logger.debug("config parameter added: {0} = {1}".format(parm,self.parm[parm]))
         
         #set conf.parm
         setattr(self, parm, value)
 
 
-    def changeparm(self, parm, value) :
+    def change_parm(self, parm, value) :
         # set new parameter value
         self.parm[parm]["value"] = value
         logger.debug("config parameter changed: {0} = {1}".format(parm,self.parm[parm]))
@@ -272,98 +276,89 @@ class Conf :
             logger.info("\t\tpassword      %s", "**secret**" ) # self.ifpsw
             logger.info("\t\torganization: %s", self.iforg   )
             logger.info("\t\tbucket:       %s", self.ifbucket)
-            logger.info("\t\ttoken:        %s", "**secret**" )
-            #logger.info("\ttoken:\t\t%s",self.iftoken)
-            
-        # extension
-        # if self.extension :
-        #     logger.info("_Extension:")
-        #     logger.info("\t\textension:\t\t%s",self.extension)
-        #     logger.info("\t\textname:  \t\t%s",self.extname)
-        #     logger.info("\t\textvar:  \ t\t%s",self.extvar)
-        #     #add empty row
-        #     logger.info("")
+            logger.info("\t\ttoken:        %s", "**secret**" ) # self.iftoken
 
-    def parserinit(self):
+
+    def parse_cmd_line_parameters(self):
         """Process commandline parameters"""
         parser = argparse.ArgumentParser(prog='grott')
         parser.add_argument('-v', '--verbose', help="set verbose", action='store_true')
-        parser.add_argument('--version', action='version', version=self.verrel)
-        parser.add_argument('-l', '--log', help="set log level", metavar="[loglevel]")
-        parser.add_argument('-c', help="set config file if not specified config file is grott.ini", metavar="[config file]")
-        parser.add_argument('-o', help="set output file, if not specified output is stdout", metavar="[output file]")
+        parser.add_argument(      '--version',                     action='version', version=self.verrel)
+        parser.add_argument('-l', '--log',     help="set log level",                                             metavar="[loglevel]")
+        parser.add_argument('-c',              help="set config file if not specified config file is grott.ini", metavar="[config file]")
+        parser.add_argument('-o',              help="set output file, if not specified output is stdout",        metavar="[output file]")
+    
         # get args
         args, unknown = parser.parse_known_args()
+        
         # process args
         if (args.c   != None) : self.cfgfile = args.c
         #if (args.o  != None) : sys.stdout   = open(args.o, 'wb',0) changed to support unbuffered output in windows !!!
         if (args.o   != None) : sys.stdout   = io.TextIOWrapper(open(args.o, 'wb', 0), write_through=True)
         if (args.log != None) :
             self.loglevel=args.log.upper()
-            if self.loglevel.upper() in ("DEBUG","DEBUGV") : self.verbose = True
+            if self.loglevel.upper() in ("DEBUG","DEBUGV") : 
+                self.verbose = True
         elif (args.verbose != None) :
             self.verbose = args.verbose
             # print(args.verbose)
-            if self.verbose : self.loglevel = "DEBUG"
+            if self.verbose : 
+                self.loglevel = "DEBUG"
         logger.setLevel(self.loglevel.upper())
         
-        # show args
-        logger.info("Grott Command line parameters processed:")
-        logger.info("\t- verbose:    \t\t%s", self.verbose)
-        logger.info("\t- loglevel:   \t\t%s", self.loglevel)
-        logger.info("\t- config file:\t\t%s", self.cfgfile)
-        logger.info("\t- output file:\t\t%s", sys.stdout)
+        logger.debug("command line parameters processed:")
+        logger.debug("\t- verbose:    \t\t%s", self.verbose)
+        logger.debug("\t- loglevel:   \t\t%s", self.loglevel)
+        logger.debug("\t- config file:\t\t%s", self.cfgfile)
+        logger.debug("\t- output file:\t\t%s", sys.stdout)
 
-    def confpost(self):
+
+    def post_process_configuration(self):
         """Post processing after all parameters settings are read"""
         # set default grottip address
         if self.grottip == "default" :
-            self.changeparm("grottip",'0.0.0.0')
+            self.change_parm("grottip",'0.0.0.0')
         # set the grott ip/poort as the grottserver IP/poort while the server will be the entry point.
         # httplisterner will also use the same ip address.
         if self.mode == "server":
-            self.changeparm("serverip",  self.grottip)
-            self.changeparm("serverport",self.grottport)
-
-
-        self.verbose      = str2bool(self.verbose)
-        self.includeall   = str2bool(self.includeall)
-        self.blockcmd     = str2bool(self.blockcmd)
-        self.noipf        = str2bool(self.noipf)
-        self.sendbuf      = str2bool(self.sendbuf)
+            self.change_parm("serverip",  self.grottip)
+            self.change_parm("serverport",self.grottport)
         
-        self.serverpassthrough = str2bool(self.serverpassthrough)
+        self.verbose           = convert2bool(self.verbose)
+        self.includeall        = convert2bool(self.includeall)
+        self.blockcmd          = convert2bool(self.blockcmd)
+        self.noipf             = convert2bool(self.noipf)
+        self.sendbuf           = convert2bool(self.sendbuf)
+        self.serverpassthrough = convert2bool(self.serverpassthrough)
+        self.nomqtt            = convert2bool(self.nomqtt)
+        self.mqttmtopic        = convert2bool(self.mqttmtopic)
+        self.mqttauth          = convert2bool(self.mqttauth)
+        self.mqttretain        = convert2bool(self.mqttretain)
+        self.pvoutput          = convert2bool(self.pvoutput)
+        self.pvdisv1           = convert2bool(self.pvdisv1)
+        self.pvtemp            = convert2bool(self.pvtemp)
+        self.influx            = convert2bool(self.influx)
+        self.influx2           = convert2bool(self.influx2)
+        self.extension         = convert2bool(self.extension)
         
-        self.nomqtt     = str2bool(self.nomqtt)
-        self.mqttmtopic = str2bool(self.mqttmtopic)
-        self.mqttauth   = str2bool(self.mqttauth)
-        self.mqttretain = str2bool(self.mqttretain)
-        
-        self.pvoutput = str2bool(self.pvoutput)
-        self.pvdisv1  = str2bool(self.pvdisv1)
-        self.pvtemp   = str2bool(self.pvtemp)
-        
-        self.influx    = str2bool(self.influx)
-        self.influx2   = str2bool(self.influx2)
-        self.extension = str2bool(self.extension)
         # Prepare invert settings
         self.SN = "".join(['{:02x}'.format(ord(x)) for x in self.inverterid])
         
         # 3.0.0 self.offset = 6
         # set offset for older inverter types or after record change by Growatt
-        # 3.0.0 if self.compat: self.offset = int(self.valueoffset)
         
-        # grott in standalone server mode no additional processing
+        # nu-grott in standalone server mode no additional processing
         if self.mode == "serversa" :
             self.nomqtt    = True
             self.pvoutput  = False
             self.influxdb  = False
             self.influxdb2 = False
             
-    def procconf(self):
-        logger.info("Grott process configuration file")
+
+    def process_config_file(self):
+        logger.debug("process configuration file")
         config = configparser.ConfigParser()
-        config.read(self.cfgfile)
+        config.read([self.cfgfile, "grott.ini", "../cfg/grott.ini"])
         
         # \todo if a parameter is badly assigned in grott.ini, the following code
         # might call an exception and the program stops. Better handle those 
@@ -388,9 +383,10 @@ class Conf :
         if config.has_option("Generic", "ip"):          self.grottip     =      config.get       ("Generic", "ip")
         if config.has_option("Generic", "port"):        self.grottport   =      config.getint    ("Generic", "port")
         if config.has_option("Generic", "valueoffset"): self.valueoffset =      config.get       ("Generic", "valueoffset")
+
         #
-        if config.has_option("Growatt", "ip"):   self.growattip   = config.get   ("Growatt", "ip")
-        if config.has_option("Growatt", "port"): self.growattport = config.getint("Growatt", "port")
+        if config.has_option("Growatt", "ip"):          self.growattip   =      config.get       ("Growatt", "ip")
+        if config.has_option("Growatt", "port"):        self.growattport =      config.getint    ("Growatt", "port")
         
         # Server
         if config.has_option("Server", "serverpassthrough"):  self.serverpassthrough  = config.getboolean("Server", "serverpassthrough")
@@ -414,7 +410,7 @@ class Conf :
         if config.has_option("MQTT", "auth"):            self.mqttauth            = config.getboolean("MQTT", "auth")
         if config.has_option("MQTT", "user"):            self.mqttuser            = config.get       ("MQTT", "user")
         if config.has_option("MQTT", "password"):        self.mqttpsw             = config.get       ("MQTT", "password")
-        
+
         # pvoutput
         if config.has_option("PVOutput", "pvoutput"):    self.pvoutput    = config.get   ("PVOutput", "pvoutput")
         if config.has_option("PVOutput", "pvtemp"):      self.pvtemp      = config.get   ("PVOutput", "pvtemp")
@@ -454,23 +450,25 @@ class Conf :
         return envval
 
 
-    def procenv(self):
-        logger.info("Grott process environmental variables")
-        if os.getenv('gmode'   ) in ("sniff", "proxy", "server", "serversa") : self.mode = self.getenv('gmode')
-        if os.getenv('gverbose') != None : self.verbose = self.getenv('gverbose')
+    def process_env_variables(self):
+        logger.debug("Grott process environmental variables")
+        
+        if os.getenv('gmode'   ) in ("sniff", "proxy", "server", "serversa") :
+                                                            self.mode       =      self.getenv('gmode')
+        if os.getenv('gverbose') != None                  : self.verbose    =      self.getenv('gverbose')
         if os.getenv('gminrecl') != None :
-            if 0 <= int(os.getenv('gminrecl')) <= 255 : self.minrecl = self.getenv('gminrecl')
-        if os.getenv('gdecrypt'   ) != None : self.decrypt    =      self.getenv('gdecrypt')
-        if os.getenv('gcompat'    ) != None : self.compat     =      self.getenv('gcompat')
-        if os.getenv('gincludeall') != None : self.includeall =      self.getenv('gincludeall')
-        if os.getenv('ginvtype'   ) != None : self.invtype    =      self.getenv('ginvtype')
-        if os.getenv('ginvtypemap') != None : self.invtypemap = eval(self.getenv('ginvtypemap'))
-        if os.getenv('gblockcmd'  ) != None : self.blockcmd   =      self.getenv('gblockcmd')
-        if os.getenv('gnoipf'     ) != None : self.noipf      =      self.getenv('gnoipf')
-        if os.getenv('gtime'      ) in ("auto", "server") : self.gtime = self.getenv('gtime')
-        if os.getenv('gtimezone'  ) != None : self.tmzone     = self.getenv('gtimezone')
-        if os.getenv('gsendbuf   ') != None : self.sendbuf    = self.getenv('gsendbuf')
-        if os.getenv('ginverterid') != None : self.inverterid = self.getenv('ginverterid')
+            if 0 <= int(os.getenv('gminrecl')) <= 255     : self.minrecl    =      self.getenv('gminrecl')
+        if os.getenv('gdecrypt'   ) != None               : self.decrypt    =      self.getenv('gdecrypt')
+        if os.getenv('gcompat'    ) != None               : self.compat     =      self.getenv('gcompat')
+        if os.getenv('gincludeall') != None               : self.includeall =      self.getenv('gincludeall')
+        if os.getenv('ginvtype'   ) != None               : self.invtype    =      self.getenv('ginvtype')
+        if os.getenv('ginvtypemap') != None               : self.invtypemap = eval(self.getenv('ginvtypemap'))
+        if os.getenv('gblockcmd'  ) != None               : self.blockcmd   =      self.getenv('gblockcmd')
+        if os.getenv('gnoipf'     ) != None               : self.noipf      =      self.getenv('gnoipf')
+        if os.getenv('gtime'      ) in ("auto", "server") : self.gtime      =      self.getenv('gtime')
+        if os.getenv('gtimezone'  ) != None               : self.tmzone     =      self.getenv('gtimezone')
+        if os.getenv('gsendbuf   ') != None               : self.sendbuf    =      self.getenv('gsendbuf')
+        if os.getenv('ginverterid') != None               : self.inverterid =      self.getenv('ginverterid')
         if os.getenv('ggrottip   ') != None :
             try:
                 ipaddress.ip_address(os.getenv('ggrottip'))
@@ -490,7 +488,7 @@ class Conf :
         if os.getenv('ggrowattport') != None :
             if 0 <= int(os.getenv('ggrowattport')) <= 65535 : self.growattport = int(self.getenv('ggrowattport'))
             else :
-                if self.verbose : print("\nGrott Growatt server Port address env invalid")
+                if self.verbose : print("\nnu-grott Growatt server Port address env invalid")
 
         # handle Serever environmentals
         if os.getenv('ConnectionTimeout') != None : self.nomqtt = self.getenv('ConnectionTimeout')
@@ -503,11 +501,11 @@ class Conf :
                 ipaddress.ip_address(os.getenv('gmqttip'))
                 self.mqttip = self.getenv('gmqttip')
             except:
-                if self.verbose : print("\nGrott MQTT server IP address env invalid")
+                if self.verbose : print("\nMQTT server IP address env invalid")
         if os.getenv('gmqttport') != None :
             if 0 <= int(os.getenv('gmqttport')) <= 65535 : self.mqttport = int(self.getenv('gmqttport'))
             else :
-                if self.verbose : print("\nGrott MQTT server Port address env invalid")
+                if self.verbose : print("\nMQTT server Port address env invalid")
 
         if os.getenv('gmqtttopic'          ) != None :  self.mqtttopic           = self.getenv('gmqtttopic')
         if os.getenv('gmqttinverterintopic') != None :  self.mqttinverterintopic = self.getenv('gmqttinverterintopic')
@@ -540,11 +538,11 @@ class Conf :
                 ipaddress.ip_address(os.getenv('gifip'))
                 self.ifip = self.getenv('gifip')
             except:
-                if self.verbose : print("\nGrott InfluxDB server IP address env invalid")
+                if self.verbose : print("\nInfluxDB server IP address env invalid")
         if os.getenv('gifport') != None :
             if 0 <= int(os.getenv('gifport')) <= 65535 : self.ifport = int(self.getenv('gifport'))
             else :
-                if self.verbose : print("\nGrott InfluxDB server Port address env invalid")
+                if self.verbose : print("\nInfluxDB server Port address env invalid")
         if os.getenv('gifuser'    ) != None : self.ifuser    =      self.getenv('gifuser')
         if os.getenv('gifpassword') != None : self.ifpsw     =      self.getenv('gifpassword')
         if os.getenv('giforg'     ) != None : self.iforg     =      self.getenv('giforg')
@@ -561,21 +559,21 @@ class Conf :
         # Influx db initialisation
         if self.ifip == "localhost" : self.ifip = '0.0.0.0'
         if self.influx2 == False:
-            logger.info("Grott InfluxDB V1 initiating started")
+            logger.info("InfluxDB V1 initiating started")
             try:
                 from influxdb import InfluxDBClient
             except:
-                return(4, "Grott Influxdb Library not installed in Python")
+                return(4, "Influxdb Library not installed in Python")
 
             self.influxclient = InfluxDBClient(host=self.ifip, port=self.ifport, timeout=3, username=self.ifuser, password=self.ifpsw)
 
             try:
                 databases = [db['name'] for db in self.influxclient.get_list_database()]
             except Exception as e:
-                return(4,"Grott can not connect to InfluxDB")
+                return(4,"cannot connect to InfluxDB")
 
             if self.ifdbname not in databases:
-                logger.info("Grott %s database not yet defined, will be created",self.ifdbname)
+                logger.info("%s database not yet defined, will be created",self.ifdbname)
                 try:
                     self.influxclient.create_database(self.ifdbname)
                 except Exception as e:
@@ -586,12 +584,12 @@ class Conf :
 
         else:
             # influxDB V2 initiatlisation
-            logger.info("Grott InfluxDB V2 initiating started")
+            logger.info("InfluxDB V2 initiating started")
             try:
                 from influxdb_client import InfluxDBClient
                 from influxdb_client.client.write_api import SYNCHRONOUS
             except:
-                return(4,"Grott Influxdb-client Library not installed in Python")
+                return(4,"Influxdb-client Library not installed in Python")
 
             #self.influxclient = InfluxDBClient(url='192.168.0.211:8086',org=self.iforg, token=self.iftoken)
             self.influxclient       = InfluxDBClient(url="{}:{}".format(self.ifip, self.ifport),org=self.iforg, token=self.iftoken)
@@ -606,7 +604,7 @@ class Conf :
                 if buckets == None:
                     #print("\t - " + "influxDB bucket ", self.ifbucket, "not defined")
                     #self.influx = False
-                    #raise SystemExit("Grott Influxdb initialisation error")
+                    #raise SystemExit("Influxdb initialisation error")
                     return(4,"influxDB bucket {0}, not defined".format(self.ifbucket))
 
                 orgfound = False
@@ -626,7 +624,7 @@ class Conf :
             return(0, "InfluxDB V2 initiation completed for - {0}: {1}".format(self.iforg,self.ifdbname))
 
 
-    def set_recwl(self):
+    def set_record_whitelist(self):
         # define record that will not be blocked or inspected if blockcmd is specified
         self.recwl = {"0103", # announce record
                       "0104", # data record
@@ -659,12 +657,13 @@ class Conf :
         }
 
         try:
-            with open('recwl.txt') as f:
+            with open('records_whitelist.txt') as f:
                 self.recwl = f.read().splitlines()
-            logger.info("Grott read external record whitelist: 'recwl.txt'")
+            logger.info("read records_whitelist.txt")
         except:
-            logger.info("Grott external record whitelist 'recwl.txt' not found")
-        logger.debug("\t- Grott records whitelisted : \n {0}".format(format_multi_line("\t", str(self.recwl))))
+            logger.info("records_whitelist.txt not found")
+            
+        logger.debug("\t- records whitelisted : \n {0}".format(format_multi_line("\t", str(self.recwl))))
 
 
     def set_reclayouts(self):
@@ -1037,7 +1036,7 @@ class Conf :
             "constantPowerOK"   : {"value" :266, "length" :  2, "type" : "num", "divide" :   1                },
             "epv1tod"           : {"value" :270, "length" :  4, "type" : "num", "divide" :  10, "incl" : "no" },
             "epv1tot"           : {"value" :278, "length" :  4, "type" : "num", "divide" :  10, "incl" : "no" },
-            "epvToday"          : {"value" :278, "length" :  4, "type" : "num", "divide" :  10                },
+            "epvtoday"          : {"value" :278, "length" :  4, "type" : "num", "divide" :  10                },
             "pvenergytoday"     : {"value" :278, "length" :  4, "type" : "num", "divide" :  10                },
             "epv2tod"           : {"value" :286, "length" :  4, "type" : "num", "divide" :  10, "incl" : "no" },
             "epvTotal"          : {"value" :286, "length" :  4, "type" : "num", "divide" :  10                },
@@ -2232,7 +2231,7 @@ class Conf :
         self.alodict.update(self.ALO_3250_3280)
 
         f = []
-        logger.info("Grott process external json layout files")
+        logger.info("process external json layout files")
         for (dirpath, dirnames, filenames) in walk('.'):
             f.extend(filenames)
             break
@@ -2244,7 +2243,7 @@ class Conf :
                     self.recorddict.update(dicttemp)
 
         if self.verbose: print
-        logger.info("Grott layout records loaded")
+        logger.info("layout records loaded")
 
         for key in self.recorddict :
             logger.info("\t{0}".format(key))

@@ -1,4 +1,4 @@
-"""Grott Growatt monitor base"""
+"""nu-grott Growatt monitor base"""
 
 
 import sys
@@ -10,11 +10,11 @@ from grottsniffer import Sniff
 from grottserver  import *
 #from collections import defaultdict
 
-VERREL = "3.1.0_20250406"
+VERREL = "3.1.0"
 
 # set logging definities
 LOGGERFORMAT = '%(asctime)s - %(name)s - \t%(levelname)s: %(message)s'
-logging.basicConfig(level=logging.INFO,format=LOGGERFORMAT)
+logging.basicConfig(level=logging.INFO, format=LOGGERFORMAT)
 DEBUG_LEVELV_NUM = 5
 
 
@@ -43,25 +43,26 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
     setattr(logging.getLoggerClass(), methodName, logForLevel)
     setattr(logging,                  methodName, logToRoot)
         
+
 addLoggingLevel("DEBUGV", logging.DEBUG - 5)
 
 logger = logging.getLogger(__name__)
 
-logger.info('Grott started, version : %s', VERREL)
+logger.info('starting nu-grott, version : %s', VERREL)
 
-conf = Conf(VERREL) # process config file
+conf = Conf(VERREL)
 
 logger.setLevel(conf.loglevel.upper()) # loglevel might be changed after config processing
 
 if conf.mode == 'proxy':
-    proxy = Proxy(conf)
+    proxy = Proxy(conf) # call initializer of grottproxy.py
     try:
         proxy.main(conf)
 
     except KeyboardInterrupt:
         logger.info("Ctrl C - Stopping server:")
         try:
-            proxy.on_close()
+            proxy.close_connection()
         except AttributeError:
             logger.info("no client ports to close")
         sys.exit(1)
@@ -84,4 +85,4 @@ if conf.mode in ['server', 'serversa']:
         sys.exit(1)
 
 else:
-    logger.critical("Grott undefined mode")
+    logger.critical("nu-grott undefined mode")
