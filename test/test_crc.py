@@ -3,10 +3,6 @@ import crc
 import libscrc
 
 
-# Unit Tests for modul grottproxy.py
-
-
-
 class TestCRC(unittest.TestCase):
     
     def test_Local_crc_vs_libscrc_implementation(self):

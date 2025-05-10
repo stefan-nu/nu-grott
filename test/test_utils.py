@@ -2,10 +2,6 @@ import unittest
 import utils
 
 
-# Unit Tests for modul utils.py
-
-
-
 class TestutilsConvert2Bool(unittest.TestCase):
     
     def test_convert2bool(self):

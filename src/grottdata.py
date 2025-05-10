@@ -15,34 +15,11 @@ from typing import Dict
 #import mqtt
 import paho.mqtt.publish as publish
 
-from utils import decrypt,  convert2bool, format_multi_line #, crypt, encrypt, byte_decrypt, to_hexstring
+from PV_output import PV_Output_Limit
+from utils import decrypt, convert2bool, format_multi_line #, crypt, encrypt, byte_decrypt, to_hexstring
 
-logger = logging.getLogger(__name__)
-
-
-class GrottPvOutLimit:
-    """limit the amount of request sent to pvoutput"""
-    def __init__(self):
-        self.register: Dict[str, int] = {}
-
-    def ok_send(self, pvserial: str, conf) -> bool:
-        """test if it is ok to send to pvoutpt"""
-        now = time.perf_counter()
-        ok = False
-        if self.register.get(pvserial):
-            ok = True if self.register.get(pvserial) + conf.pvuplimit * 60 < now else False
-            if ok:
-                self.register[pvserial] = int(now)
-            else:
-                logger.debug('\t - PVOut: Update refused for %s due to time limitation', {pvserial})
-        else:
-            self.register.update({pvserial: int(now)})
-            ok = True
-        return ok
-
-pvout_limit = GrottPvOutLimit()
-
-
+logger      = logging.getLogger(__name__)
+pvout_limit = PV_Output_Limit()
 
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
     """ Auto generate layout definitions from data record """
@@ -255,6 +232,14 @@ def process_data(conf, data):
     # Test length if < 12 it is a data ack record or no layout record is defined
     if recordtype not in conf.datarec + conf.smartmeterrec or conf.layout == "none":
         logger.debug("Grott data ack or data record not defined, no processing done")
+        
+        FILENAME = "unknown_records.txt" 
+        my_file = open(FILENAME, mode='a')
+        data_str = "".join("{:02x}".format(n) for n in data) # convert data to string
+        my_file.write(data_str)
+        my_file.write("\n")
+        my_file.close()
+        
         return
 
     # Inital flag to detect if real data was processed

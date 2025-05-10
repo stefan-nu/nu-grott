@@ -2,9 +2,6 @@ import unittest
 import grottproxy
 
 
-# Unit Tests for modul grottproxy.py
-
-
 class TestGrottProxy(unittest.TestCase):
         
     def test_validate_record_msg_02_wrong_length(self):
