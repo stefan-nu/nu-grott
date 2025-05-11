@@ -203,6 +203,26 @@ def format_bytes(bytes_data):
     return data
 
 
+def hex_dump(data, bytes_per_line=16):
+    """Display a hex dump of binary data with both hex and ASCII representation."""
+    result = []
+    nl = '\n'
+
+    for i in range(0, len(data), bytes_per_line):
+        chunk = data[i:i+bytes_per_line]
+        ## Create the hex representation
+        hex_repr = ' '.join(r'{:02x}'.format(b) for b in chunk)
+
+        ## Create the ASCII representation (printable chars only)
+        ascii_repr = ''.join(chr(b) if 32 <= b <= 126 else '.' for b in chunk)
+        
+        ## Format the line with address, hex values, and ASCII representation
+        line = f"{i:04x}: {hex_repr:<{bytes_per_line*3}} {ascii_repr}"
+        result.append(line)
+
+    return '\n'.join(result)
+
+
 # Formats multi-line string 
 def format_multi_line(prefix, string, size=80):
     size -= len(prefix)
@@ -210,6 +230,7 @@ def format_multi_line(prefix, string, size=80):
         string = ''.join(r'\x{:02x}'.format(byte) for byte in string)
         if size % 2:
             size -= 1
+            
     return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
 
 

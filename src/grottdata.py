@@ -14,12 +14,12 @@ import codecs
 from typing import Dict
 #import mqtt
 import paho.mqtt.publish as publish
+from PV_output import processPVOutput
 
-from PV_output import PV_Output_Limit
-from utils import decrypt, convert2bool, format_multi_line #, crypt, encrypt, byte_decrypt, to_hexstring
+from utils import hex_dump, decrypt, format_multi_line # convert2bool, crypt, encrypt, byte_decrypt, to_hexstring
 
 logger      = logging.getLogger(__name__)
-pvout_limit = PV_Output_Limit()
+
 
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
     """ Auto generate layout definitions from data record """
@@ -170,7 +170,7 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
         test = conf.recorddict[layout]
     except:
         # try generic if generic record exist
-        logger.debug("no matching specific record layout found, try generic")
+        logger.debug("no specific layout matches record, try generic layout")
         if recordtype in conf.datarec:
             layout = layout.replace(deviceno+recordtype, "NNNN")
             try:
@@ -217,7 +217,7 @@ def process_data(conf, data):
     (layout, result_string) = AutoCreateLayout(conf, data, protocol, deviceno, recordtype)
 
     if layout == "none" :
-        logger.warning("No matching layout found data record will not be processed")
+        logger.warning("ignore record without matching layout")
         no_valid_rec = True
 
     else : 
@@ -226,20 +226,33 @@ def process_data(conf, data):
     conf.layout = layout
 
     # print data records (original/decrypted)
-    logger.debug("Original  data:\n{0} \n".format(format_multi_line("\t", data,          80)))
-    logger.debug("Decrypted data:\n{0} \n".format(format_multi_line("\t", result_string, 80)))
+    #logger.debug("Original  data:\n{0} \n".format(format_multi_line("\t", data,          80)))
+    #logger.debug("Decrypted data:\n{0} \n".format(format_multi_line("\t", result_string, 80)))
+    #print(hex_dump(bytes.fromhex(result_string)))
 
     # Test length if < 12 it is a data ack record or no layout record is defined
     if recordtype not in conf.datarec + conf.smartmeterrec or conf.layout == "none":
         logger.debug("Grott data ack or data record not defined, no processing done")
         
-        FILENAME = "unknown_records.txt" 
-        my_file = open(FILENAME, mode='a')
-        data_str = "".join("{:02x}".format(n) for n in data) # convert data to string
-        my_file.write(data_str)
+        # store all found unknown records in hexadecimal format to analyse them
+        FILENAME_HEX = "unknown_records.hex" 
+        my_file = open(FILENAME_HEX, mode='a')
+        my_file.write("\nEncrypted:\n")
+        my_file.write(hex_dump(data))
+        my_file.write("\nDecrypted:\n")
+        my_file.write(hex_dump(bytes.fromhex(result_string)))
         my_file.write("\n")
         my_file.close()
+        hex_dump(data)
         
+        # store all found unknown records in raw format to use them as test data
+        FILENAME_TXT = "unknown_records.txt" 
+        my_file = open(FILENAME_TXT, mode='a')
+        my_file.write("\n")
+        my_file.write(result_string)
+        my_file.write("\n")
+        my_file.close()
+        hex_dump(data)
         return
 
     # Inital flag to detect if real data was processed
@@ -481,111 +494,13 @@ def process_data(conf, data):
         # else:
             # if conf.verbose: print("\t - " + 'No MQTT message sent, MQTT disabled')
 
+
         # process pvoutput if enabled
         if conf.pvoutput :
-            import requests
-
-            pvidfound = False
-            if  conf.pvinverters == 1 :
-                pvssid = conf.pvsystemid[1]
-                pvidfound = True
-            else:
-                for pvnum, pvid in conf.pvinverterid.items():
-                    if pvid == defined_key["pvserial"] :
-                        print(pvid)
-                        pvssid = conf.pvsystemid[pvnum]
-                        pvidfound = True
-
-            if not pvidfound:
-                if conf.verbose : print("\t - " + "pvsystemid not found for inverter : ", defined_key["pvserial"])
-                return
-            
-            if not pvout_limit.ok_send(defined_key["pvserial"], conf):
-                # Will print a line for the refusal in verbose mode (see GrottPvOutLimit at the top)
-                return
-            
-            if conf.verbose : 
-                print("\t - " + "send data to PVOutput systemid: ", pvssid, "for inverter: ", defined_key["pvserial"])
-                
-            pvheader = {
-                "X-Pvoutput-Apikey"   : conf.pvapikey,
-                "X-Pvoutput-SystemId" : pvssid
-            }
-
-            pvodate = jsondate[:4] + jsondate[5:7] + jsondate[8:10]
-            pvotime = jsondate[11:16]
-
-            if record_type != "20" : # record is not from a smart meter
-                
-                # calculate average voltage of the 3 phases
-                grid_voltage_L1  = defined_key["pvgridvoltage" ]
-                grid_voltage_L2  = defined_key["pvgridvoltage2"]
-                grid_voltage_L3  = defined_key["pvgridvoltage3"]
-                grid_voltage_sum = (grid_voltage_L1 + grid_voltage_L2 + grid_voltage_L3)
-                grid_voltage_avg = round((grid_voltage_sum / 30), 1) 
-                
-                # \todo PVoutput accepts one voltage value. 
-                # It is up to the user if this is the grid voltage the string
-                # voltage or any other voltage. 
-                # grott should allow to adjust which voltage is sent.
-                         
-                pvdata = {
-                    "d"     : pvodate,
-                    "t"     : pvotime,
-                    "v2"    : defined_key["pvpowerin"]/10,
-                    "v6"    : grid_voltage_avg
-                }
-                if not conf.pvdisv1 :                    
-                    pvdata["v1"]    = defined_key["pvenergytoday"] * 100 
-                else:
-                    if conf.verbose : 
-                        print("\t - " + "PVOutput send V1 disabled")
-
-                if conf.pvtemp :
-                    pv_temp = defined_key["pvtemperature"]
-                    pvdata["v5"] = pv_temp / 10
-
-                reqret = requests.post(conf.pvurl, data = pvdata, headers = pvheader)
-              
-                if conf.verbose : 
-                    print("\t\t - ", pvheader)
-                    print("\t\t - ", pvdata)
-                    print("\t - " + "Grott PVOutput response: ")
-                    print("\t\t - ", reqret.text)
-                
-            else: # record is from a smart meter
-                # values are seprated in several packets because PVoutput does not accept them combined
-
-                pvdata1 = {
-                    "d"  : pvodate,
-                    "t"  : pvotime,
-                    "v3" : defined_key["pos_act_energy"]*100, # lifetime energy consumption (day wil be calculated)
-                    "c1" : 3,                                 # cumulative flag indicates
-                    "v6" : defined_key["voltage_l1"    ]/10   # grid voltage L1
-                    }
-
-                pvdata2 = {
-                    "d"  : pvodate,
-                    "t"  : pvotime,
-                    "v4" : defined_key["pos_rev_act_power"]/10, # power consumption
-                    "v6" : defined_key["voltage_l1"       ]/10, # grid voltage L1 
-                    "n"  : 1                                    # indicates if net data (import /export)
-                    }
-                #  "v4"  : defined_key["pos_act_power"]/10,     # power consumption
-                    
-                reqret1 = requests.post(conf.pvurl, data = pvdata1, headers = pvheader)
-                reqret2 = requests.post(conf.pvurl, data = pvdata2, headers = pvheader)
-
-                if conf.verbose : 
-                    print("\t\t - ", pvheader)
-                    print("\t\t - ", pvdata1)
-                    print("\t\t - ", pvdata2)
-                    print("\t - " + "PVOutput response SM1: ")
-                    print("\t\t - ", reqret1.text)
-                    print("\t - " + "PVOutput response SM2: ")
-                    print("\t\t - ", reqret2.text)
+            processPVOutput(conf, defined_key, jsondate, header)
         else:
             if conf.verbose : print("\t - " + "Grott Send data to PVOutput disabled ")
+
 
     # influxDB processing
     if conf.influx:
