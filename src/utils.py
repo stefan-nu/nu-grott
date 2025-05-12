@@ -52,28 +52,6 @@ def crypt(encrypted_binary_data: bytes):
     return decrypted_binary_data
 
 
-# Kept as reference implementation
-# encrypt / decrypt data.
-def _decrypt(decdata):
-    ndecdata = len(decdata)
-
-    # Create mask and convert to hexadecimal
-    mask = "Growatt"
-    hex_mask = ["{:02x}".format(ord(x)) for x in mask]
-    nmask = len(hex_mask)
-
-    # start decrypt routine
-    unscrambled = list(decdata[0:8])  # take unscramble header
-
-    for i, j in zip(range(0, ndecdata - 8), cycle(range(0, nmask))):
-        unscrambled = unscrambled + [decdata[i + 8] ^ int(hex_mask[j], 16)]
-
-    result_string = "".join("{:02x}".format(n) for n in unscrambled)
-
-    print("\t - " + "Grott - data decrypted V2")
-    return result_string
-
-
 # encrypt / decrypt data.
 def byte_decrypt(decdata: bytes):
     """
@@ -177,22 +155,10 @@ def convert2bool(defstr):
     return None
 
 
-def str2bool(defstr):
-    if defstr in ("True", "true", "TRUE", "y", "Y", "yes", "YES", 1, "1"):
-        defret = True
-    if defstr in ("False", "false", "FALSE", "n", "N", "no", "NO", 0, "0"):
-        defret = False
-    if "defret" in locals():
-        return defret
-    else:
-        return ()
-
-
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
-
 
 
 def format_bytes(bytes_data):
@@ -223,19 +189,8 @@ def hex_dump(data, bytes_per_line=16):
     return '\n'.join(result)
 
 
-# Formats multi-line string 
-def format_multi_line(prefix, string, size=80):
-    size -= len(prefix)
-    if isinstance(string, bytes):
-        string = ''.join(r'\x{:02x}'.format(byte) for byte in string)
-        if size % 2:
-            size -= 1
-            
-    return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
-
-
 # Formats multi-line data
-def _format_multi_line(prefix, string, size=80):
+def format_multi_line(prefix, string, size=80):
     size -= len(prefix)
     if isinstance(string, bytes):
         bytes_chuncks = chunks(string, 16)
