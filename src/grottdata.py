@@ -1,24 +1,23 @@
 """grottdata.py processing data functions"""
 
-import logging
-from datetime import datetime, timedelta
-#from os import times_result
 #import pytz
-import time
 #import sys
 #import struct
-import textwrap
-#from itertools import cycle # to support "cycling" the iterator
+#import time
+#import textwrap
+import logging
 import json
 import codecs
-from typing import Dict
-#import mqtt
-import paho.mqtt.publish as publish
+#from itertools import cycle # to support "cycling" the iterator
+#from os import times_result
+#from typing    import Dict
+from datetime  import datetime
 from PV_output import processPVOutput
+from influxDB  import influx_processing
+from mqtt      import mqtt_processing
+from utils     import hex_dump, decrypt
 
-from utils import hex_dump, decrypt, format_multi_line # convert2bool, crypt, encrypt, byte_decrypt, to_hexstring
-
-logger      = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
@@ -66,7 +65,6 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
                         logger.debug("Inverter serial: {0} found in invtypemap - using inverter type {1}".format(inverter_serial,inverter_type))
                     except:
                         logger.debug("Inverter serial: {0} not found invtypemap - using inverter type {1}".format(inverter_serial,inverter_type))
-
                 except:
                     logger.critical("error in inverter_serial retrieval, try without invertypemap")
 
@@ -243,7 +241,6 @@ def process_data(conf, data):
         my_file.write(hex_dump(bytes.fromhex(result_string)))
         my_file.write("\n")
         my_file.close()
-        hex_dump(data)
         
         # store all found unknown records in raw format to use them as test data
         FILENAME_TXT = "unknown_records.txt" 
@@ -252,7 +249,6 @@ def process_data(conf, data):
         my_file.write(result_string)
         my_file.write("\n")
         my_file.close()
-        hex_dump(data)
         return
 
     # Inital flag to detect if real data was processed
@@ -465,111 +461,27 @@ def process_data(conf, data):
         # or buffered records if sendbuf = False
         if (buffered == "yes") :
             if (conf.sendbuf == False) or (timefromserver == True) :
-                if conf.verbose: print("\t - " + 'Buffered record not sent: sendbuf = False or invalid date/time format')
+                if conf.verbose : print("\t - " + 'Buffered record not sent: sendbuf = False or invalid date/time format')
                 return
 
+
         if conf.nomqtt != True:
-            # if meter data use mqtttopicname topic
-            if (record_type in ("20", "1b")) and (conf.mqttmtopic == True) :
-                mqtttopic = conf.mqttmtopicname
-            else :
-                # test if invertid needs to be added to topic
-                if conf.mqttinverterintopic :
-                    mqtttopic = conf.mqtttopic + "/" + deviceid
-                else: mqtttopic = conf.mqtttopic
-            print("\t - " + 'Grott MQTT topic used : ' + mqtttopic)
-
-            if conf.mqttretain:
-                if conf.verbose: print("\t - " + 'Grott MQTT message retain enabled')
-
-            try:
-                publish.single(mqtttopic, payload=jsonmsg, qos=0, retain=conf.mqttretain, hostname=conf.mqttip,port=conf.mqttport, client_id=conf.inverterid, keepalive=60, auth=conf.pubauth)
-                if conf.verbose: print("\t - " + 'MQTT message message sent')
-            except TimeoutError:
-                if conf.verbose: print("\t - " + 'MQTT connection time out error')
-            except ConnectionRefusedError:
-                if conf.verbose: print("\t - " + 'MQTT connection refused by target')
-            except BaseException as error:
-                if conf.verbose: print("\t - " + 'MQTT send failed:', str(error))
-        # else:
-            # if conf.verbose: print("\t - " + 'No MQTT message sent, MQTT disabled')
+            mqtt_processing(conf, header, jsonmsg, deviceid)
+        else:
+            if conf.verbose : print("\t - " + 'Sending data via MQTT disabled')
 
 
         # process pvoutput if enabled
         if conf.pvoutput :
             processPVOutput(conf, defined_key, jsondate, header)
         else:
-            if conf.verbose : print("\t - " + "Grott Send data to PVOutput disabled ")
+            if conf.verbose : print("\t - " + "Sending data to PVOutput disabled ")
 
 
     # influxDB processing
     if conf.influx:
-        if conf.verbose :  print("\t - " + "Grott InfluxDB publihing started")
-        try:
-            import  pytz
-        except:
-            if conf.verbose :  print("\t - " + "Grott PYTZ Library not installed in Python, influx processing disabled")
-            conf.inlyx = False
-            return
-        try:
-            local = pytz.timezone(conf.tmzone)
-        except :
-            if conf.verbose :
-                if conf.tmzone ==  "local":  print("\t - " + "Timezone local specified default timezone used")
-                else : print("\t - " + "Grott unknown timezone : ",conf.tmzone,", default timezone used")
-            conf.tmzone = "local"
-            local = int(time.timezone/3600)
-            #print(local)
+        influx_processing(conf, jsondate, header, defined_key)
 
-        if conf.tmzone == "local":
-            curtz = time.timezone
-            utc_dt = datetime.strptime (jsondate, "%Y-%m-%dT%H:%M:%S") + timedelta(seconds=curtz)
-        else :
-            naive = datetime.strptime (jsondate, "%Y-%m-%dT%H:%M:%S")
-            local_dt = local.localize(naive, is_dst=None)
-            utc_dt = local_dt.astimezone(pytz.utc)
-
-        ifdt = utc_dt.strftime ("%Y-%m-%dT%H:%M:%S")
-        if conf.verbose :  print("\t - " + "Grott original time : ",jsondate,"adjusted UTC time for influx : ",ifdt)
-
-        # prepare influx json msg dictionary
-
-        # if record is a smart monitor record use datalogserial as measurement (to distinguish from solar record)
-        if header[14:16] != "20" :
-            ifobj = {
-                        "measurement" : defined_key["pvserial"],
-                        "time"        : ifdt,
-                        "fields"      : {}
-            }
-        else:
-            ifobj = {
-                        "measurement" : defined_key["datalogserial"],
-                        "time"        : ifdt,
-                        "fields"      : {}
-            }
-
-        for key in defined_key :
-            if key != "date" :
-                ifobj["fields"][key] = defined_key[key]
-
-        # Create list for influx
-        ifjson = [ifobj]
-
-        print("\t - " + "Grott influxdb jsonmsg: ")
-        print(format_multi_line("\t\t\t ", str(ifjson)))
-
-        try:
-            if (conf.influx2):
-                if conf.verbose :  print("\t - " + "Grott write to influxdb v2")
-                ifresult = conf.ifwrite_api.write(conf.ifbucket,conf.iforg,ifjson)
-            else:
-                if conf.verbose :  print("\t - " + "Grott write to influxdb v1")
-                ifresult = conf.influxclient.write_points(ifjson)
-
-        except Exception as e:
-            print("\t - " + "InfluxDB error ")
-            print(e)
-            raise SystemExit("Influxdb write error, nu-grott will be stopped")
 
     if conf.extension :
         if conf.verbose :  
