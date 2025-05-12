@@ -20,6 +20,47 @@ from utils     import hex_dump, decrypt
 logger = logging.getLogger(__name__)
 
 
+def detect_layout(data: bytes, conf, inverter_type = "default") -> str:
+    "Detect the layout to allow find the mapping"
+    
+    protocol   = data[3]
+    deviceno   = data[6] 
+    recordtype = data[7]
+    
+    layout = "T{:02x}{:02x}{:02x}".format(protocol, deviceno, recordtype)
+    
+    # shine X box ?
+    
+    if len(data) > 375 and (recordtype not in conf.smartmeterrec):
+        layout += "X"
+
+    # v270 no invtype added to layout for smart monitor records
+    if (inverter_type != "default") and (recordtype not in conf.smartmeterrec):
+        layout += inverter_type.upper()
+
+    return layout
+
+
+def find_record(layout:str, available_layouts: list):
+    
+    T_protocol = layout[0:3]
+    recordtype = layout[5:7]
+    appendix   = layout[5: ]
+    
+    if layout in available_layouts:
+        return layout
+    
+    elif recordtype in ("04", "50"):
+        layout = T_protocol + "NNNN" + appendix
+       
+        if layout in available_layouts:
+            return layout
+        else:
+            return None
+        
+    return None
+
+
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
     """ Auto generate layout definitions from data record """
     # At this moment 3 types of layout description are known:
@@ -41,9 +82,7 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
         return(layout, result_string)
 
     # create standard layout
-    layout = "T" + protocol + deviceno + recordtype
-    #v270 add X for extended except for smart monitor records
-    if ((datalen > 375) and recordtype not in conf.smartmeterrec) : layout = layout + "X"
+    layout = detect_layout(data, conf)
 
     if recordtype in conf.datarec:
         # for data records create or select layout definition
