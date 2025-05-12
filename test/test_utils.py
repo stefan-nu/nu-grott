@@ -1,6 +1,31 @@
 import unittest
 import utils
 
+class TestutilsValidateRecord(unittest.TestCase):
+
+    def test_validate_record_msg_02_wrong_length(self):
+        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
+        self.assertEqual(utils.validate_record(data_in_bytes), False) 
+        
+        
+    def test_validate_record_correct_msg_02(self):
+        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr'
+        self.assertEqual(utils.validate_record(data_in_bytes), True)
+        
+        
+    def test_validate_record_correct_msg_05(self):
+        data_in_bytes  =  b'\x00=\x00\x05\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\x4f\x8b'
+        self.assertEqual(utils.validate_record(data_in_bytes), True) 
+        
+        
+    def test_validate_record_correct_msg_06(self):
+        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
+        self.assertEqual(utils.validate_record(data_in_bytes), True) 
+        
+        
+    def test_validate_record_wrong_crc(self):
+        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xff'
+        self.assertEqual(utils.validate_record(data_in_bytes), False) 
 
 class TestutilsConvert2Bool(unittest.TestCase):
     

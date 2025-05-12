@@ -80,50 +80,49 @@ def byte_decrypt(decdata: bytes):
     return decrypted
 
 
+""" validata data record on length and CRC (for "05" and "06" records)"""
 def validate_record(data: bytes) -> bool:
     # validata data record on length and CRC (for "05" and "06" records)
     # The CRC is a modbus CRC
     #
     # the packet start with \x00\x0d\x00
     # Protocol byte is the fourth, ex: \x05 \x06 \x02
-    # Length is the next to 2 bytes in big endian format
+    # Length is the next two 2 bytes in big endian format
     # Next is data
     # The last 2 bytes if the protocol is not 2 is the CRC
 
-    # Length of the data in bytes
-    ldata = len(data)
-
+    len_data = len(data)
     protocol = data[3]
-    len_orgpayload = int.from_bytes(data[4:6], "big")
-    print("header: {} - Data size: {}".format(to_hexstring(data[0:6]), ldata))
-    print("\t\t- Protocol is: {}".format(protocol))
-    print("\t\t- Length is: {} bytes".format(len_orgpayload))
+    len_from_payload = int.from_bytes(data[4:6], "big")
+    # print("header: {}".format(to_hexstring(data[0:6])))
+    # print("\t\t- Data size: {} bytes".format(len_data))
+    # print("\t\t- Protocol : {}".format(protocol))
+    # print("\t\t- Length   : {} bytes".format(len_from_payload))
 
     has_crc = False
     if protocol in (0x05, 0x06):
         has_crc = True
-        # CRC is the last 2 bytes
-        lcrc = 2
-        crc = int.from_bytes(data[-lcrc:], "big")
+        len_crc = 2         # CRC is the last 2 bytes
+        crc     = int.from_bytes(data[-len_crc:], "big")
     else:
-        lcrc = 0
+        len_crc = 0 # SN: this makes no sense as it does only apply to protocol 02
 
-    # ldata - 6 bytes of header - crc length
-    len_realpayload = ldata - 6 - lcrc
+    # len_data - 6 bytes of header - crc length
+    len_real_payload = len_data - 6 - len_crc
 
     if protocol != 0x02:
-        crc_calc = modbus_crc(data[: ldata - 2])
-        print("Calculated CRC: {}".format(crc_calc))
+        crc_calc = modbus_crc(data[: len_data - 2])
 
-    if len_realpayload == len_orgpayload:
-        returncc = True
-        print("Data CRC: {} - Calculated: {}".format(crc, crc_calc))
+    if len_real_payload == len_from_payload: # correct length
+        record_valid = True 
+
         if protocol != 0x02 and crc != crc_calc:
-            return False
-    else:
-        returncc = False
+            return False # wrong crc
+        
+    else: # wrong data length
+        record_valid = False 
 
-    return returncc
+    return record_valid
 
 
 ## convert a provided value to a boolean value

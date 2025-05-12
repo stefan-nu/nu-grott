@@ -1,37 +1,10 @@
 import unittest
-import grottproxy
+#import grottproxy
 
 
-class TestGrottProxy(unittest.TestCase):
+#class TestGrottProxy(unittest.TestCase):
         
-    def test_validate_record_msg_02_wrong_length(self):
-        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
-        data_as_string = "".join("{:02x}".format(n) for n in data_in_bytes)
-        self.assertEqual(grottproxy.validate_record(data_as_string), (8, 'data record has invalid length')) 
-        
-        
-    def test_validate_record_correct_msg_02(self):
-        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr'
-        data_as_string = "".join("{:02x}".format(n) for n in data_in_bytes)
-        self.assertEqual(grottproxy.validate_record(data_as_string), (0, 'ok'))
-        
-        
-    def test_validate_record_correct_msg_05(self):
-        data_in_bytes  =  b'\x00=\x00\x05\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\x4f\x8b'
-        data_as_string = "".join("{:02x}".format(n) for n in data_in_bytes)
-        self.assertEqual(grottproxy.validate_record(data_as_string), (0, 'ok')) 
-        
-        
-    def test_validate_record_correct_msg_06(self):
-        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
-        data_as_string = "".join("{:02x}".format(n) for n in data_in_bytes)
-        self.assertEqual(grottproxy.validate_record(data_as_string), (0, "ok")) 
-        
-        
-    def test_validate_record_wrong_crc(self):
-        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xff'
-        data_as_string = "".join("{:02x}".format(n) for n in data_in_bytes)
-        self.assertEqual(grottproxy.validate_record(data_as_string), (8, 'data record has invalid crc')) 
+
         
         
     # real message received from Growatt

@@ -6,11 +6,10 @@ import socket
 import select
 import time
 import sys
-from crc       import modbus_crc
-from utils     import decrypt, format_multi_line
+from utils     import decrypt, format_multi_line, validate_record
 from grottdata import process_data
 
-vrmproxy = "3.0.0_241019"
+vrmproxy = "3.0.0"
 
 # to resolve errno 32: broken pipe issue (only linux)
 if sys.platform != 'win32' :
@@ -46,57 +45,6 @@ def decode_header(header_str):
     print("device   : ", device)
     print("rec_type : ", rec_type)
     return 0
-
-
-""" validata data record on length and CRC (for "05" and "06" records)"""
-# if record is valid           return 0
-# if record has invalid crc    return 8 
-# if record has invalid length return 8 
-def validate_record(xdata):
-    
-    data             = bytes.fromhex(xdata)
-    len_data         = len(data)
-    len_from_payload = int.from_bytes(data[4:6], "big")
-    HEADER_SIZE      = 8 # all known messages use an 8 byte header
-    header           = "".join("{:02x}".format(n) for n in data[0 : HEADER_SIZE])
-    protocol         = header[6:8]
-    
-    # decrypted = decrypt(data)
-    # print("xdata    : ", xdata)
-    # print("data     : ", data)
-    # print("decrypted: ", decrypted)
-    # print("msg_len  : ", len_data)
-    # print("data_len : ", len_data-8)
-    # print("len_from_payload:", len_from_payload)
-    # decode_header(header)
-
-    crc = 0
-    if protocol in ("05", "06"):
-        len_crc = 4 # SN better use 2 as CRC is 2 bytes long
-        crc     = int.from_bytes(data[len_data - 2 : len_data], "big")
-    else:
-        len_crc = 0 # SN: this makes no sense as it does only apply to protocol 02
-
-    len_real_payload = (len_data * 2 - 12 - len_crc) / 2 # length in bytes
-
-    if protocol != "02":
-        try:
-            crc_calc = modbus_crc(data[0 : len_data-2])
-        except:
-            crc_calc = crc = 0 # why is this needed ?
-
-    check_result = "ok"
-    check_code   = 0
-    
-    if len_real_payload == len_from_payload:
-        if protocol != "02" and crc != crc_calc:
-            check_result = "data record has invalid crc"
-            check_code   = 8
-    else :
-        check_result = "data record has invalid length"
-        check_code   = 8
-
-    return(check_code, check_result)
 
 
 """"DEFINE FORWARD CONNECTION"""
@@ -259,14 +207,13 @@ class Proxy:
     """process received data"""
     def process_received_data(self, conf):
         
-        data_bin = self.data # create local copy of binary data
+        data_bin = self.data # create local copy of received data
         logger.debug(" - %s", self.channel[self.s]) # show socket where data_bin originates from
         
         # test if record is not corrupted
-        data_string = "".join("{:02x}".format(n) for n in data_bin)
-        validatecc  = validate_record(data_string)
-        if validatecc[0] != 0 :
-            logger.warning("invalid data_bin record received: %s, ignore record", validatecc[1])
+        record_valid  = validate_record(data_bin)
+        if record_valid == False :
+            logger.warning("invalid data_bin record received")
             logger.debugv("original data_bin:\n{0} \n".format(format_multi_line("\t", self.data, 120)))
             return
         
@@ -318,8 +265,8 @@ class Proxy:
                 return
 
         # send message to inverter
-        self.channel[self.s].send(data_bin)
+        self.channel[self.s].send(data_bin) # forward message to inverter and ...
         if len(data_bin) > conf.minrecl :
-            process_data(conf, data_bin)
-        #else:
+            process_data(conf, data_bin)    # ... decode the message for local processing
+        else:
             logger.debug("Data less than minimum record length, data_bin not processed")
