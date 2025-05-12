@@ -10,7 +10,7 @@ sys.path.insert(1, 'src')
 
 from grottconf import Conf
 from utils     import validate_record, decrypt, byte_decrypt
-from grottdata import process_data, detect_layout, find_record
+from grottdata import process_data, detect_layout
 
 logger = logging.getLogger(__name__)
 
@@ -160,22 +160,6 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf = Conf("2.7.6") 
         layout = detect_layout(self.raw_data_SPH6000, conf, "SPH")
         assert layout == "T060104XSPH"
-    
-    
-    def test_layout_search(self):
-        conf       = Conf("2.7.6")
-        detected   = "T06NNNN"
-        undetected = "T060103XSPH"
-        renamed    = "T060104XSPH"
-    
-        result = find_record(detected, conf.recorddict)
-        assert result == detected
-    
-        layout = find_record(undetected, conf.recorddict)
-        assert layout is None
-    
-        #layout = find_record(renamed, conf.recorddict)
-        #assert layout == "T06NNNNXSPH"
 
 
     def test_dec(self):

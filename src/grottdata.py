@@ -41,26 +41,6 @@ def detect_layout(data: bytes, conf, inverter_type = "default") -> str:
     return layout
 
 
-def find_record(layout:str, available_layouts: list):
-    
-    T_protocol = layout[0:3]
-    recordtype = layout[5:7]
-    appendix   = layout[5: ]
-    
-    if layout in available_layouts:
-        return layout
-    
-    elif recordtype in ("04", "50"):
-        layout = T_protocol + "NNNN" + appendix
-       
-        if layout in available_layouts:
-            return layout
-        else:
-            return None
-        
-    return None
-
-
 def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
     """ Auto generate layout definitions from data record """
     # At this moment 3 types of layout description are known:
@@ -119,6 +99,7 @@ def AutoCreateLayout(conf, data, protocol, deviceno, recordtype) :
             end    = start + 20
             sn_hex = result_string[start : end]
             layout = codecs.decode(sn_hex, "hex").decode('utf-8')
+
 
             # test if layout already exist
             try:
