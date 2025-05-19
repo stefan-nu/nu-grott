@@ -89,13 +89,13 @@ class Miniconf:
 
 
 # Formats multi-line data
-def format_multi_line(prefix, string, size=80):
+def format_multi_line(prefix, data, size=80):
     size -= len(prefix)
-    if isinstance(string, bytes):
-        string = ''.join(r'\x{:02x}'.format(byte) for byte in string)
+    if isinstance(data, bytes):
+        data = ''.join(r'\x{:02x}'.format(byte) for byte in data)
         if size % 2:
             size -= 1
-    return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
+    return '\n'.join([prefix + line for line in textwrap.wrap(data, size)])
 
 
 # encrypt / decrypt data.
@@ -133,25 +133,27 @@ def calc_crc(data):
                 crc >>= 1
     return crc
 
+
+# SN: \todo DRY use validate_record from utils 
 def validate_record(xdata):
-    # validata data record on length and CRC (for "05" and "06" records)
-    logger.debug("validate data record")
-    data = bytes.fromhex(xdata)
-    ldata = len(data)
-    len_orgpayload = int.from_bytes(data[4:6],"big")
-    header = "".join("{:02x}".format(n) for n in data[0:8])
+    # validata input_stream record on length and CRC (for "05" and "06" records)
+    logger.debug("validate input_stream record")
+    input_stream = bytes.fromhex(xdata)
+    ldata = len(input_stream)
+    len_orgpayload = int.from_bytes(input_stream[4:6],"big")
+    header = "".join("{:02x}".format(n) for n in input_stream[0:8])
     protocol = header[6:8]
 
     if protocol in ("05","06"):
         lcrc = 4
-        crc = int.from_bytes(data[ldata-2:ldata],"big")
+        crc = int.from_bytes(input_stream[ldata-2:ldata],"big")
     else:
         lcrc = 0
 
     len_realpayload = (ldata*2 - 12 -lcrc) / 2
 
     if protocol != "02" :
-                crc_calc = calc_crc(data[0:ldata-2])
+                crc_calc = calc_crc(input_stream[0:ldata-2])
 
     if len_realpayload == len_orgpayload :
         returncc = 0
@@ -1032,7 +1034,7 @@ class sendrecvserver:
                                 logger.warning("handle_readble_socket, continue without forwarding")
 
                             # Process the data
-                            self.process_data(conf,s, data)
+                            self.interprete_msg(conf,s, data)
                             # create buffer with remaining messages
                             if buflength > reclength+8:
                                 logger.debug("handle_readble_socket, process additional messages in buffer")
@@ -1231,20 +1233,20 @@ class sendrecvserver:
         if pt_socket in self.channel:
                 del self.channel[pt_socket]
 
-    def waitsync(self,sequencenumber,sendersock,timeout=1):
+    def waitsync(self, sequencenumber, sendersock, timeout=1):
         # this routine will wait on (ack/nack) response for a message
         # will be created in the future, no only perform a wait to give the remote (e.g. client or growatt server) the time to response.
         logger.debug("waitsync, wait for response on msg:{0} from: {1}".format(sequencenumber,sendersock))
         time.sleep(timeout)
 
-    def process_data_record(self,conf,data):
+    def process_data_record(self, conf, data):
         """this routine will process the growatt datarecords"""
-        process_data(conf,data)
+        interprete_msg(conf, data)
         logger.debug("process_data_record initiated")
         returncc = 0
         return(returncc)
 
-    def process_data(self, conf, s, data):
+    def interprete_msg(self, conf, s, data):
 
         #self.send_queuereg[qname].put(response)
 
@@ -1259,16 +1261,16 @@ class sendrecvserver:
             response = None
 
             # Display data
-            logger.debug(f"process_data, data received from : {client_address}:{client_port}")
+            logger.debug(f"interprete_msg, data received from : {client_address}:{client_port}")
             logger.debug("\n{0}".format(format_multi_line("\t", data)))
 
             # validate data (Length + CRC for 05/06)
             # join gebeurt nu meerdere keren! Stroomlijnen!!!!
             vdata = "".join("{:02x}".format(n) for n in data)
-            validatecc = validate_record(vdata)
-            # validatecc = 0
-            if validatecc != 0 :
-                logger.debug("process_data, invalid data record received, processing stopped for this record returncode: %s",validatecc)
+            record_valid = validate_record(vdata)
+
+            if record_valid == False :
+                logger.debug("invalid data record received, processing stopped for this record")
                 # Create response if needed?
                 #self.send_queuereg[qname].put(response)
                 return
@@ -1285,7 +1287,7 @@ class sendrecvserver:
                 result_string = decrypt(data)
             else :
                 result_string = "".join("{:02x}".format(n) for n in data)
-            logger.debug(f"process_data, plain record: ")
+            logger.debug(f"interprete_msg, plain record: ")
             logger.debug("\n{0}".format(format_multi_line("\t", result_string)))
             loggerid = result_string[16:36]
             loggerid = codecs.decode(loggerid, "hex").decode('ISO-8859-1')
@@ -1294,7 +1296,7 @@ class sendrecvserver:
             if rectype in ("16"):
                 # if ping send data as reply
                 response = data
-                logger.debug(f"process_data, 16- ping response:")
+                logger.debug(f"interprete_msg, 16- ping response:")
                 logger.debug("\n{0}".format(format_multi_line("\t\t ", response)))
 
                 # v0.0.14a: create temporary also logger record at ping (to support shinelink without inverters)
@@ -1303,7 +1305,7 @@ class sendrecvserver:
                     loggerreg[loggerid].update({"ip" : client_address, "port" : client_port, "protocol" : header[6:8]})
                 except:
                     loggerreg[loggerid] = {"ip" : client_address, "port" : client_port, "protocol" : header[6:8]}
-                    logger.debug(f"process_data, datalogger id: {loggerid} added by ping: {loggerreg[loggerid]}")
+                    logger.debug(f"interprete_msg, datalogger id: {loggerid} added by ping: {loggerreg[loggerid]}")
 
 
             # v0.0.14: remove "29" (no response will be sent for this record!)
@@ -1335,7 +1337,7 @@ class sendrecvserver:
                 # decrypt body.
                     if header[6:8] in ("05","06") :
                         #print("header1 : ", header[6:8])
-                        result_string = decrypt(data)
+                        result_string = decrypt(data, 8)
                     else :
                         result_string = data.hex()
 

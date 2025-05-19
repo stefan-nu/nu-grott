@@ -1,55 +1,65 @@
 
-import logging
 import textwrap
-from itertools import cycle
 
-from crc import modbus_crc
 
-logger = logging.getLogger(__name__)
+def write_structure_to_file(file_name, msg):
+    
+    with open(file_name, "a") as f:
+        for key, value in msg.items():
+            print('{0:>12}: {1:6}'.format(key, value), file=f)
+        print(file=f) # terminate structure with a newline
+    f.close()
+
+
+def write_nested_structure_to_file(file_name, msg):
+    
+    with open(file_name, "a") as f:
+        for key, nested in msg.items() :
+            print(key, nested, file=f)
+            for subkey, value in sorted(nested.items()):
+                print('\t{}: {}'.format(subkey, value), file=f)
+            print(file=f)
+    f.close()
 
 
 def to_hexstring(data):
     return "".join("\\x{:02x}".format(n) for n in data)
 
 
-def decrypt(encrypted_binary_data):
-    decrypted_binary_data = crypt(encrypted_binary_data)
-    decrypted_string = "".join("{:02x}".format(n) for n in decrypted_binary_data)
-    return decrypted_string
+def convertBin2Str(data: bytes) :
+    string = "".join("{:02x}".format(n) for n in data)
+    return string
 
 
-def encrypt(decrypted_binary_data):
-    encrypted_binary_data = crypt(decrypted_binary_data)
-    encrypted_string = "".join("{:02x}".format(n) for n in encrypted_binary_data)
-    return encrypted_string
+def decrypt_as_bin(encrypted_binary_data, start):
+    return crypt(encrypted_binary_data, start)
 
 
-#def crypt(encrypted_binary_data):
-def crypt(encrypted_binary_data: bytes):
-    len_data = len(encrypted_binary_data)
+def decrypt_as_str(encrypted_binary_data, start):
+    decrypted_binary_data = decrypt_as_bin(encrypted_binary_data, start)
+    return convertBin2Str(decrypted_binary_data)
 
-    # the leading 8 bytes are unencrypted
-    # those bytes are used as header
-    NUM_UNENCRYTED_BYTES = 8 
-    num_encrypted_bytes  = len_data - NUM_UNENCRYTED_BYTES
 
-    key2    = b"Growatt"
-    key2_len = len(key2)
-    
-    KEY     = "Growatt"
-    KEY_HEX = ['{:02x}'.format(ord(x)) for x in KEY]
-    KEY_LEN = len(KEY_HEX)
+def encrypt(decrypted_binary_data, start):
+    encrypted_binary_data = crypt(decrypted_binary_data, start)
+    return convertBin2Str(encrypted_binary_data)
 
-    #decrypted = bytearray(decdata)
 
-    decrypted_binary_data = list(encrypted_binary_data[0 : NUM_UNENCRYTED_BYTES])
+def crypt(binary_data: bytes, start):
+
+    KEY     = b"Growatt"
+    KEY_LEN = len(KEY)
+
+    len_data            = len(binary_data)
+    num_uncrypted_bytes = len_data - start
+    crypted_binary_data = list(binary_data[0 : start])
         
-    for i in range(0, num_encrypted_bytes) :
+    for i in range(0, num_uncrypted_bytes) :
         j = i % KEY_LEN
-        decrypted_byte = [encrypted_binary_data[i+8] ^ int(KEY_HEX[j], 16)]
-        decrypted_binary_data += decrypted_byte
+        crypted_byte = [binary_data[i+start] ^ KEY[j]]
+        crypted_binary_data += crypted_byte
 
-    return decrypted_binary_data
+    return crypted_binary_data
 
 
 # encrypt / decrypt data.
@@ -59,7 +69,7 @@ def byte_decrypt(decdata: bytes):
     made at byte level for more efficient and simple code
     """
     # The xor key is always Growatt
-    mask = b"Growatt"
+    mask     = b"Growatt"
     mask_len = len(mask)
 
     length_data = len(decdata)
@@ -78,51 +88,6 @@ def byte_decrypt(decdata: bytes):
     decrypted = bytes(decrypted)
 
     return decrypted
-
-
-""" validata data record on length and CRC (for "05" and "06" records)"""
-def validate_record(data: bytes) -> bool:
-    # validata data record on length and CRC (for "05" and "06" records)
-    # The CRC is a modbus CRC
-    #
-    # the packet start with \x00\x0d\x00
-    # Protocol byte is the fourth, ex: \x05 \x06 \x02
-    # Length is the next two 2 bytes in big endian format
-    # Next is data
-    # The last 2 bytes if the protocol is not 2 is the CRC
-
-    len_data = len(data)
-    protocol = data[3]
-    len_from_payload = int.from_bytes(data[4:6], "big")
-    # print("header: {}".format(to_hexstring(data[0:6])))
-    # print("\t\t- Data size: {} bytes".format(len_data))
-    # print("\t\t- Protocol : {}".format(protocol))
-    # print("\t\t- Length   : {} bytes".format(len_from_payload))
-
-    has_crc = False
-    if protocol in (0x05, 0x06):
-        has_crc = True
-        len_crc = 2         # CRC is the last 2 bytes
-        crc     = int.from_bytes(data[-len_crc:], "big")
-    else:
-        len_crc = 0 # SN: this makes no sense as it does only apply to protocol 02
-
-    # len_data - 6 bytes of header - crc length
-    len_real_payload = len_data - 6 - len_crc
-
-    if protocol != 0x02:
-        crc_calc = modbus_crc(data[: len_data - 2])
-
-    if len_real_payload == len_from_payload: # correct length
-        record_valid = True 
-
-        if protocol != 0x02 and crc != crc_calc:
-            return False # wrong crc
-        
-    else: # wrong data length
-        record_valid = False 
-
-    return record_valid
 
 
 ## convert a provided value to a boolean value
@@ -160,6 +125,25 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
+def hex_dump(data, bytes_per_line=16):
+    """Display a hex dump of binary data with both hex and ASCII representation."""
+    result = []
+
+    for i in range(0, len(data), bytes_per_line):
+        chunk = data[i:i+bytes_per_line]
+        # Create the hex representation
+        hex_repr = ' '.join(r'{:02x}'.format(b) for b in chunk)
+
+        # Create the ASCII representation (printable chars only)
+        ascii_repr = ''.join(chr(b) if 32 <= b <= 126 else '.' for b in chunk)
+        
+        # Format the line with address, hex values, and ASCII representation
+        line = f"{i:04x}: {hex_repr:<{bytes_per_line*3}} {ascii_repr}"
+        result.append(line)
+
+    return '\n'.join(result)
+
+
 def format_bytes(bytes_data):
     width = 16 * 3 + 3  # 3 char for HEX + space
     data = " ".join(r"{:02x}".format(byte) for byte in bytes_data)
@@ -168,32 +152,12 @@ def format_bytes(bytes_data):
     return data
 
 
-def hex_dump(data, bytes_per_line=16):
-    """Display a hex dump of binary data with both hex and ASCII representation."""
-    result = []
-    nl = '\n'
-
-    for i in range(0, len(data), bytes_per_line):
-        chunk = data[i:i+bytes_per_line]
-        ## Create the hex representation
-        hex_repr = ' '.join(r'{:02x}'.format(b) for b in chunk)
-
-        ## Create the ASCII representation (printable chars only)
-        ascii_repr = ''.join(chr(b) if 32 <= b <= 126 else '.' for b in chunk)
-        
-        ## Format the line with address, hex values, and ASCII representation
-        line = f"{i:04x}: {hex_repr:<{bytes_per_line*3}} {ascii_repr}"
-        result.append(line)
-
-    return '\n'.join(result)
-
-
 # Formats multi-line data
-def format_multi_line(prefix, string, size=80):
+def format_multi_line(prefix, data, size = 80):
     size -= len(prefix)
-    if isinstance(string, bytes):
-        bytes_chuncks = chunks(string, 16)
-        return "\n".join(
-            [prefix + format_bytes(byte_chunk) for byte_chunk in bytes_chuncks]
-        )
-    return "\n".join([prefix + line for line in textwrap.wrap(string, size)])
+    # formatting for byte stream
+    if isinstance(data, bytes):
+        bytes_chuncks = chunks(data, 16)
+        return "\n".join([prefix + format_bytes(byte_chunk) for byte_chunk in bytes_chuncks])
+    # formatting for text stream
+    return     "\n".join([prefix + line                     for line       in textwrap.wrap(data, size)])

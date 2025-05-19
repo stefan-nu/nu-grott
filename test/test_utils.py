@@ -1,31 +1,6 @@
 import unittest
 import utils
 
-class TestutilsValidateRecord(unittest.TestCase):
-
-    def test_validate_record_msg_02_wrong_length(self):
-        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
-        self.assertEqual(utils.validate_record(data_in_bytes), False) 
-        
-        
-    def test_validate_record_correct_msg_02(self):
-        data_in_bytes  =  b'\x00=\x00\x02\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr'
-        self.assertEqual(utils.validate_record(data_in_bytes), True)
-        
-        
-    def test_validate_record_correct_msg_05(self):
-        data_in_bytes  =  b'\x00=\x00\x05\x00 \x00\x16\x1f5+A"2@u%YwattGrowattGrowattGr\x4f\x8b'
-        self.assertEqual(utils.validate_record(data_in_bytes), True) 
-        
-        
-    def test_validate_record_correct_msg_06(self):
-        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xfd'
-        self.assertEqual(utils.validate_record(data_in_bytes), True) 
-        
-        
-    def test_validate_record_wrong_crc(self):
-        data_in_bytes  =  b'\x00=\x00\x06\x00 \x01\x16\x1f5+A"2@u%YwattGrowattGrowattGr\xe3\xff'
-        self.assertEqual(utils.validate_record(data_in_bytes), False) 
 
 class TestutilsConvert2Bool(unittest.TestCase):
     
@@ -94,70 +69,70 @@ class TestutilsFormatMultiLine(unittest.TestCase):
 
 class TestCrypt(unittest.TestCase):
     
-    # Datastreams with length smaller than 9 bytes are not encrypted
-    def test_decrypt_data_smaller_than_9byte(self):
+    def test_decrypt_data(self):
         data_bin = b'\x00'
         expected = "00"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\xff'
         expected = "ff"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x1e\x7a'
         expected = "1e7a"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x00\x00\x00\x00'
         expected = "00000000"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
 
         data_bin = b'\x01\x02\x03\x04\x05\x06\x07'
         expected = "01020304050607"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x01\x02\x03\x04\x05\x06\x07\x08'
         expected = "0102030405060708"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
+        self.assertEqual(result, expected)
+        
+        data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00'
+        expected = "47726f7761747447"
+        result   = utils.decrypt_as_str(data_bin, 0)
         self.assertEqual(result, expected)
 
-
-    # The first 8 bytes of a datastreams are not encrypted. 
-    # Messages longer than 8 bytes are decrypted starting at byte 9
-    def test_decrypt_data_9bytes_long_and_longer(self):
         data_bin = b'\x01\x02\x03\x04\x05\x06\x07\x08\x09'
         expected = "01020304050607084e"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
         expected = "00010203040506074f7b657c6d797a48"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         expected = "000000000000000047726f7761747447"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
 
         data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x04\x08\x10\x20\x30\x40'
         expected = "000000000000000046706b7f71544407"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x04\x08\x10\x20\x30\x40\x08\x01\x02\x03\x04\10\x20\x40'
         expected = "000000000000000046706b7f715444077a6e7562707c6732"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
 
         data_bin = b'\x00\x01\x02\x03\x04\x05Growatt'
         expected = "000102030405477228050e0315"
-        result   = utils.decrypt(data_bin)
+        result   = utils.decrypt_as_str(data_bin, 8)
         self.assertEqual(result, expected)
         
         
@@ -165,12 +140,12 @@ class TestCrypt(unittest.TestCase):
         data_bin = b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x04\x08\x10\x20\x30\x40\x08\x01\x02\x03\x04\10\x20\x40' 
         expected = "000000000000000001020408102030400801020304082040"
         
-        result1 = utils.encrypt(data_bin)
-        result2 = utils.decrypt(data_bin)
+        result1 = utils.encrypt(data_bin, 3)
+        result2 = utils.decrypt_as_str(data_bin, 3)
         self.assertEqual(result1, result2)
         
-        result1   = utils.decrypt(utils.crypt(data_bin))
-        result2   = utils.encrypt(utils.crypt(data_bin))
+        result1   = utils.decrypt_as_str(utils.crypt(data_bin, 3), 3)
+        result2   = utils.encrypt(utils.crypt(data_bin, 3), 3)
         self.assertEqual(result1, expected)
         self.assertEqual(result2, expected)
         self.assertEqual(result1, result2)

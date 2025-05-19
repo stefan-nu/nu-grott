@@ -52,7 +52,7 @@ class Sniff:
                             print("\t\t\t - " + 'RST: {}, SYN: {}, FIN:{}'.format(self.tcp.flag_rst, self.tcp.flag_syn, self.tcp.flag_fin))
 
                         if len(self.tcp.data) > conf.minrecl :
-                            process_data(conf,self.tcp.data)    
+                            interprete_msg(conf, self.tcp.data)    
                         else:     
                             if conf.verbose: print("\t - " + 'Data less then minimum record length, data not processed') 
                             

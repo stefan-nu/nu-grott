@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from utils    import format_multi_line
 
 
-def influx_processing(conf, jsondate, header, defined_key) :
+def influx_processing(conf, msg, defined_key, jsondate) :
    
     if conf.verbose :  print("\t - " + "Grott InfluxDB publihing started")
     try:
@@ -36,7 +36,7 @@ def influx_processing(conf, jsondate, header, defined_key) :
     # prepare influx json msg dictionary
 
     # if record is a smart monitor record use datalogserial as measurement (to distinguish from solar record)
-    if header[14:16] != "20" :
+    if msg["cmd"] != 32 :
         ifobj = {
                     "measurement" : defined_key["pvserial"],
                     "time"        : ifdt,

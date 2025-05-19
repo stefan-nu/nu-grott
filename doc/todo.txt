@@ -3,7 +3,7 @@ PVOut: Update refused for {'KNN0D7403B'} due to time limitation
 
 2. Korrekte Daten an PVOutput senden
 
-3. Kurze Packete verarbeiten
+3. Kurze Pakete verarbeiten
 Data less then minimum record length, data not processed
 
 4. Grott data ack record or data record not defined, no processing done
@@ -12,7 +12,6 @@ Data less then minimum record length, data not processed
 
 6. Test Coverage berechnen
 
-7. Prevent Logging messages during test execution
 
 In validate_record it is not clear why first is checked for protocol 05/06
 and then later is checked for protocol 02, correct comment as it does not
@@ -33,3 +32,19 @@ Some parameters are missing from grott.ini documentation -> add them
 Zeitstring an pvoutput war 12:40am das muss 00:40am sein, grott.ini time = server
 dateoffset = 136 was bedeutet das?
 Inverter Zeit ist oft um stunden falsch
+
+Statistik erstellen welche Kommandos wie oft empfangen wurden
+
+FW Update aufzeichnen und Binary in File speichern
+
+The record whitelist makes no difference between the devices.
+If several devices are available all must be set individually. 
+It would be better if some messages can be filtered out independently of the 
+number of available devices.
+
+Ack Messages should only be forwarded if before a data message was forwarded
+Currently all ACK Messages are forwarded 
+
+Run each socket in its own thread
+
+Ensure every 5 min a message is send to PVoutput

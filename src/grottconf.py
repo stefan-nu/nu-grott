@@ -9,12 +9,12 @@ import logging
 from test import test_cmd_line
 
 # logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger  = logging.getLogger(__name__)
 vrmconf = "3.1.0"
 
 
 class Conf :
-    """define/proces nu-grott configuration settings"""
+    """define/process nu-grott configuration settings"""
     
     def __init__(self, vrm):
         """"Init Configuration"""
@@ -40,18 +40,19 @@ class Conf :
         self.verbose   = False
         self.loglevel  = "INFO"
         self.cfgfile   = "grott.ini"
+        self.store_unknown_records = True # SN: added this parameter
         
         self.parse_cmd_line_parameters()
-        self.set_default_config() 
-        self.process_config_file()  
-        self.process_env_variables()         
-        self.post_process_configuration() # override/correct configuration       
+        self.set_default_config()
+        self.process_config_file()
+        self.process_env_variables()
+        self.post_process_configuration() # override/correct configuration
         self.reset_debug_level()
         
         # print configuration
         #self.print() # \todo use logger instead of print
 
-        # process not if in standalone mode‚
+        # process not if in standalone mode
         if self.mode not in ["serversa"]:
             # prepare MQTT security
             if not self.mqttauth: self.pubauth = None
@@ -95,15 +96,15 @@ class Conf :
         self.add_parm("Info", "verrelserver", self.vrmserver)
         
         # set changeable variables (in .ini or environmentals:
-        self.add_parm("Hardcoded", "datarec",       ["04","50"]     ) # recordtypes for inverter data processing
-        self.add_parm("Hardcoded", "smartmeterrec", ["1b","20","1e"]) # recordtypes for inverter data processing
-        self.add_parm("Hardcoded", "mindatarec",     12             ) # deprecated, minimal datarecord length that can be processed (no ack record!)
-        self.add_parm("Hardcoded", "inverterid",    "automatic"     ) # since 3.0.0. invertid cannot be changed anymore, only there for compatability
-        self.add_parm("Hardcoded", "outfile",       "sys.stdout"    ) # standard sysout, can only be overwritten at startup
+        self.add_parm("Hardcoded", "datarec",       [4, 80]     ) # recordtypes for inverter data processing
+        self.add_parm("Hardcoded", "smartmeterrec", [27, 30, 32]) # recordtypes for smart meter data processing
+        self.add_parm("Hardcoded", "mindatarec",     12         ) # deprecated, minimal datarecord length that can be processed (no ack record!)
+        self.add_parm("Hardcoded", "inverterid",    "automatic" ) # since 3.0.0. invertid cannot be changed anymore, only there for compatability
+        self.add_parm("Hardcoded", "outfile",       "sys.stdout") # standard sysout, can only be overwritten at startup
         
         ### Set default variables
         self.add_parm("Generic", "verbose",    self.verbose, "gverbose"   ) # 3.0.0 not recommended use loglevel!
-        self.add_parm("Generic", "loglevel",   self.loglevel,"gloglevel"  ) # Standard python logging level: DEBUG,INFO,WARNING,ERROR,CRITICAL added DEBUGV (debug verbose+)
+        self.add_parm("Generic", "loglevel",   self.loglevel,"gloglevel"  ) # Standard python logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL, DEBUGV (more verbose debug)
         self.add_parm("Generic", "cfgfile",    self.cfgfile               ) # config file can only be set via startup parameter
         self.add_parm("Generic", "minrecl",    100,          "gminrecl"   ) # specify lower minrecl (e.g. minrecl = 1) to log / debug all records. minrecl = 100 will supress most of commincation records except data related records
         self.add_parm("Generic", "invtype",    "auto",       "ginvtype"   ) # specify invertype:  default (use standard tl-s type of inverters, automatic (>3.0.0, lets grott automatically detect),spf, sph, mod etc use specific invertypes)
@@ -231,7 +232,7 @@ class Conf :
                     try:
                         printlist.remove(item)
                     except Exception as e:
-                        logger.debug("item already deleted: %s",item)
+                        logger.debug("item already deleted: %s, Error: %s", item, e)
         else:
             printlist = list
 
@@ -442,7 +443,6 @@ class Conf :
         if config.has_option("extension", "extname"  ): self.extname   =      config.get("extension", "extname")
         if config.has_option("extension", "extvar"   ): self.extvar    = eval(config.get("extension", "extvar"))
 
-
     def getenv(self, envvar):
         envval = os.getenv(envvar)
 
@@ -589,7 +589,7 @@ class Conf :
                 from influxdb_client import InfluxDBClient
                 from influxdb_client.client.write_api import SYNCHRONOUS
             except:
-                return(4,"Influxdb-client Library not installed in Python")
+                return(4, "Influxdb-client Library not installed in Python")
 
             #self.influxclient = InfluxDBClient(url='192.168.0.211:8086',org=self.iforg, token=self.iftoken)
             self.influxclient       = InfluxDBClient(url="{}:{}".format(self.ifip, self.ifport),org=self.iforg, token=self.iftoken)
@@ -605,7 +605,7 @@ class Conf :
                     #print("\t - " + "influxDB bucket ", self.ifbucket, "not defined")
                     #self.influx = False
                     #raise SystemExit("Influxdb initialisation error")
-                    return(4,"influxDB bucket {0}, not defined".format(self.ifbucket))
+                    return(4, "influxDB bucket {0}, not defined".format(self.ifbucket))
 
                 orgfound = False
                 for org in organizations:
@@ -613,57 +613,61 @@ class Conf :
                         orgfound = True
                         break
                 if not orgfound:
-                    return(4,"influxDB organization : {0} not defined or no authorised".format(self.iforg))
+                    return(4, "influxDB organization : {0} not defined or no authorised".format(self.iforg))
 
             except Exception as e:
                 #if self.verbose :  print("\t - " + "Grott error: can not contact InfluxDB",e.message)
                 #self.influx = False                       # no influx processing any more till restart (and errors repared)
                 #raise SystemExit("Grott Influxdb initialisation error")
-                return(4, "Grott error: can not contact InfluxDB: {0} - {1}".format(e.status,e.message))
+                return(4, "Grott error: can not contact InfluxDB: {0} - {1}".format(e.status, e.message))
 
-            return(0, "InfluxDB V2 initiation completed for - {0}: {1}".format(self.iforg,self.ifdbname))
+            return(0, "InfluxDB V2 initiation completed for - {0}: {1}".format(self.iforg, self.ifdbname))
 
 
     def set_record_whitelist(self):
-        # define record that will not be blocked or inspected if blockcmd is specified
-        self.recwl = {"0103", # announce record
-                      "0104", # data record
-                      "0116", # ping
-                      "0105", # identify/display inverter config
-                      "0119", # identify/display datalogger config
-                      "0120", # Smart Monitor Record
-                      "0150", # Archived record
-                      "5003", # announce record
-                      "5004", # data record
-                      "5016", # ping
-                      "5005", # identify/display inverter config
-                      "5019", # identify/display datalogger config
-                      "501b", # SDM630 with Raillog
-                      "5050", # Archived record
-                      "5103", # announce record
-                      "5104", # data record
-                      "5116", # ping
-                      "5105", # identify/display inverter config
-                      "5119", # identify/display datalogger config
-                      "5129", # announce record
-                      "5150", # Archived record
-                      "5103", # announce record
-                      "5104", # data record
-                      "5216", # ping
-                      "5105", # identify/display inverter config
-                      "5219", # identify/display datalogger config
-                      "5229", # announce record
-                      "5250"  # Archived record
+        # define default list for records that will not be blocked or inspected 
+        # if blockcmd is specified
+        self.recwl = {
+            "0103", # announce record
+            "0104", # data record
+            "0105", # identify/display inverter config
+            "0116", # ping
+            "0119", # identify/display datalogger config
+            "0120", # Smart Monitor Record
+            "0150", # Archived record
+            "5003", # announce record
+            "5004", # data record
+            "5005", # identify/display inverter config
+            "5016", # ping
+            "5019", # identify/display datalogger config
+            "501b", # SDM630 with Raillog
+            "5050", # Archived record
+            "5103", # announce record
+            "5104", # data record
+            "5116", # ping
+            "5105", # identify/display inverter config
+            "5105", # identify/display inverter config
+            "5119", # identify/display datalogger config
+            "5129", # announce record
+            "5150", # Archived record
+            "5216", # ping
+            "5219", # identify/display datalogger config
+            "5229", # announce record
+            "5250"  # Archived record
         }
 
         try:
-            with open('records_whitelist.txt') as f:
+            # if a file with whitelisted records is provided 
+            # it will be used instead of the default list
+            record_whitelist_filename = '../cfg/records_whitelist.txt'
+            with open(record_whitelist_filename) as f:
                 self.recwl = f.read().splitlines()
-            logger.info("read records_whitelist.txt")
+            logger.info("read {0}".format(record_whitelist_filename))
         except:
-            logger.info("records_whitelist.txt not found")
+            logger.info("file {0} not found".format(record_whitelist_filename))
+            logger.info("using default list for whitelisted records instead")
             
-        logger.debug("\t- records whitelisted : \n {0}".format(format_multi_line("\t", str(self.recwl))))
+        logger.debug("whitelisted records: \n {0}".format(format_multi_line("\t", str(self.recwl))))
 
 
     def set_reclayouts(self):
@@ -1682,6 +1686,8 @@ class Conf :
             "bms_commtype"       : {"value" : 1082, "length" :  2, "type" : "num",  "divide" :    1             }
           } }
 
+        # add all the recorddictionaries defined above to "self.recorddict"
+        # \todo DRY define the nested dictionary hardcoded not at runtime
         self.recorddict.update(self.recorddict1)
         self.recorddict.update(self.recorddict2)
         self.recorddict.update(self.recorddict3)
@@ -1693,14 +1699,15 @@ class Conf :
         self.recorddict.update(self.recorddict9)
         self.recorddict.update(self.recorddict10)
         self.recorddict.update(self.recorddict11)
-        self.recorddict.update(self.recorddict12) # T05NNNNXSPH
-        self.recorddict.update(self.recorddict13) # T06NNNNXSPA
+        self.recorddict.update(self.recorddict12)
+        self.recorddict.update(self.recorddict13)
         self.recorddict.update(self.recorddict14)
 
-                # Layout definitions for automatic record detection
+        # Layout definitions for automatic record detection
+        # SN: what might "alo" mean? Automatic LayOut 
         self.alodict = {}
 
-        # Define Layout for auto Layout generation
+        # Define Layout for automatic layout generation
         # default base protocol 00, 02
         self.ALO02 = { "ALO02" : {
             "decrypt"           : {"value" : "False"},
@@ -1719,7 +1726,7 @@ class Conf :
             "datastart"         : {"value" :70, "length" :  2, "type" : "num",                "incl" : "no" },
             } }
 
-        # base protocol 06 # SN my protocol
+        # base protocol 06 # SN: my protocol
         self.ALO06    = { "ALO06" :  {
             "decrypt"           : {"value" :"True"},
             "datalogserial"     : {"value" : 16, "length" : 10, "type" : "text",                "incl" : "yes"},
@@ -1782,7 +1789,7 @@ class Conf :
             "eractotal"         : {"value" :334, "length" : 4, "type" : "numx", "divide" : 10, "register" : 62, "incl" : "no"}
             } }
 
-# Layout voor protocol v2
+        # Layouts for protocol v2
 
         self.ALO_0_124 = {"ALO_0_124": {
             "pvstatus"           : {"value" : 78, "length" : 2, "type" : "numx", "divide" :   10, "register" :   0               },
@@ -1838,7 +1845,6 @@ class Conf :
             "eacharge_total"     : {"value" :534, "length" : 4, "type" : "numx", "divide" :   10, "register" : 113               },
             "priority"           : {"value" :550, "length" : 2, "type" : "numx", "divide" :    1, "register" : 118               },
             "batterytype"        : {"value" :554, "length" : 2, "type" : "numx", "divide" :    1, "register" : 119               },
-
         }}
 
         self.ALO_1000_1124 = {"ALO_1000_1124": {
@@ -1935,11 +1941,12 @@ class Conf :
             "BMS_Error2"         : {"value" :638, "length" : 2, "type" : "numx", "divide" :   1, "register" : 1121               },
             "BMS_Error3"         : {"value" :642, "length" : 2, "type" : "numx", "divide" :   1, "register" : 1122               },
             "BMS_WarnInfo2"      : {"value" :646, "length" : 2, "type" : "numx", "divide" :   1, "register" : 1123               },
-            "ACChargeEnergyTodH" : {"value" :650, "length" : 2, "type" : "numx", "divide" :   1, "register" : 1124               }  # deze is een beetjevreemd omdat de high en Low over groeprn heen gedefinieerd zijn en uit elkaar liggen
+            "ACChargeEnergyTodH" : {"value" :650, "length" : 2, "type" : "numx", "divide" :   1, "register" : 1124               }  
+            # This one is a little strange because the high and low are defined across group rn and are spaced apart
          }}
 
         self.ALO_1125_1249 = {"ALO_1125_1249": {
-            "acchargeenergytoday": {"value" :666, "length" : 2, "type" : "numx", "divide" :  1, "register" : 1125}, # vooralsnog ervan uitgegaan dat low alleen genoeg is!
+            "acchargeenergytoday": {"value" :666, "length" : 2, "type" : "numx", "divide" :  1, "register" : 1125}, # Assuming for now that low alone is enough
             "acchargeenergytotal": {"value" :670, "length" : 4, "type" : "numx", "divide" :  1, "register" : 1126},
             "acchargepower"      : {"value" :678, "length" : 4, "type" : "numx", "divide" :  1, "register" : 1128},
             "70%_invpoweradjust" : {"value" :686, "length" : 2, "type" : "numx", "divide" :  1, "register" : 1130},
@@ -2217,6 +2224,8 @@ class Conf :
             "bclrtodaydataflag": {"value" : 1290,"length": 2,"type" : "numx","divide" :  1,"register" : 3280},
         }}
 
+        # add all the alodictionaries defined above to "self.alodict"
+        # \todo DRY define the nested dictionary hardcoded not at runtime
         self.alodict.update(self.ALO02)
         self.alodict.update(self.ALO05)
         self.alodict.update(self.ALO06)
@@ -2231,24 +2240,28 @@ class Conf :
         self.alodict.update(self.ALO_3250_3280)
 
         f = []
-        logger.info("process external json layout files")
-        for (dirpath, dirnames, filenames) in walk('.'):
+        logger.info("process external JSON layout files")
+        path_to_json_files = '../examples/Record Layout'
+        #path_to_json_files = '../cfg'
+        #path_to_json_files = '.'
+        for (dirpath, dirnames, filenames) in walk(path_to_json_files):
             f.extend(filenames)
             break
         for x in f:
             if ((x[0] == 't' or x[0] == 'T') and x.find('.json') > 0):
-                logger.info("\t%s", x)
-                with open(x) as json_file:
+                file_to_open = "{0}/{1}".format(path_to_json_files, x)
+                logger.info("read JSON file: %s", file_to_open)
+                with open(file_to_open) as json_file:
                     dicttemp = json.load(json_file)
                     self.recorddict.update(dicttemp)
 
         if self.verbose: print
-        logger.info("layout records loaded")
+        logger.debug("layout records loaded")
 
         for key in self.recorddict :
             logger.info("\t{0}".format(key))
-            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.recorddict[key]),120)))
+            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.recorddict[key]), 120)))
 
         for key in self.alodict :
             logger.info("\t{0}".format(key))
-            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.alodict[key]),120)))
+            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.alodict[key]), 120)))

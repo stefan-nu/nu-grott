@@ -23,21 +23,21 @@ class utilsMarker:
 
 class GrottConstants:
 
-    MASK = b'Growatt'  # Encryption mask
-    HEADER_PLAIN = 8  # Unencrypted
-    HEADER_MAX_LEN = 158  # for packet in HEX format
-    PACKET_CRC = -2  # Last 2 bytes
+    MASK           = b'Growatt'  # Encryption mask
+    HEADER_PLAIN   = 8           # Unencrypted
+    HEADER_MAX_LEN = 158         # for packet in HEX format
+    PACKET_CRC     = -2          # Last 2 bytes
 
 
 class InverterType(str, enum.Enum):
-    MAC = 'mac'
-    MAX = 'max'
-    MID = 'mid'
-    MIN = 'min'
-    MIX = 'mix'
-    SPA = 'spa'
-    SPF = 'spf'
-    SPH = 'sph'
+    MAC     = 'mac'
+    MAX     = 'max'
+    MID     = 'mid'
+    MIN     = 'min'
+    MIX     = 'mix'
+    SPA     = 'spa'
+    SPF     = 'spf'
+    SPH     = 'sph'
     UNKNOWN = 'unk'
 
     @classmethod

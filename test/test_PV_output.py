@@ -1,6 +1,6 @@
 import unittest
-import PV_output
 import grottconf
+from PV_output import PV_Output_Limit
 
 
 class Test_PV_Output(unittest.TestCase):
@@ -9,7 +9,7 @@ class Test_PV_Output(unittest.TestCase):
         defined_key = {}
         defined_key["pvserial"] = "1234"
         conf   = grottconf.Conf("3.0.0_20241208")
-        pvout_limit = PV_output.GrottPvOutLimit()
+        pvout_limit = PV_Output_Limit()
         result = pvout_limit.ok_send(defined_key["pvserial"], conf)
         self.assertEqual(result, True)
         
@@ -18,7 +18,7 @@ class Test_PV_Output(unittest.TestCase):
         defined_key = {}
         defined_key["pvserial"] = "1234"
         conf   = grottconf.Conf("3.0.0_20241208")
-        pvout_limit = PV_output.GrottPvOutLimit()
+        pvout_limit = PV_Output_Limit()
         result1 = pvout_limit.ok_send(defined_key["pvserial"], conf)
         result2 = pvout_limit.ok_send(defined_key["pvserial"], conf)
         self.assertEqual(result1, True)

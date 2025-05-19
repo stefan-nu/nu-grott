@@ -1,23 +1,22 @@
+    # Information found here
+    # Modbus Plug-in of ioBroker
+    # https://www.ietfng.org/nwf/misc/growatt-protocol.html
+    # https://www.photovoltaikforum.com/thread/182965-l%C3%B6sung-growatt-daten-vom-smart-meter-%C3%BCber-growatt-modbus-schnittstelle-abfragen/
+    # In the growatt documents commands are referred to as "functions" too.
+
+
+
+
+
 This document collects some useful information about the Growatt communication
 protocol and how it is processed by nu-grott
 
 
-Record Types
+Record with length <=12 ist an ACK 
 
-03	unknown (kommt bei mir vor)
-04	my inverter
-18  
-1b	smart meter
-1e	smart meter
-20	smart meter
-37	my inverter
-50	historical inverter buffered
+80 Protocol Types
 
-
-
-
-Protocol Types
-
+00  ?
 02	unencrypted data ohne crc
 05	encrypted   data mit  16bit crc 
 06	encrypted   data mit  16bit crc 
@@ -30,17 +29,15 @@ Device Numbers
 5x shinelink
 
 
-
-
 Header layout
 
-a header is 8 bytes long
+a header is 8 bytes long oder sind es nur 6 Bytes?
 thus 16 hex strings
 
 A header starts with a fixed value \x00\x0d\x00 ?
 
 Byte    Hex    Meaning     typical value
-0 		 0:  2 unknown1    = 00 
+0 		 0:  2 start       = 00 
 1 		 2:  4 unknown2    = 01,02,03,0f,10,15,1a,1e 
 2 		 4:  6 unknown3    = 00
 3 		 6:  8 protocol    = 06
@@ -64,13 +61,6 @@ Header example
 
 
 
-Msg Type - Message Layout             - Checksum
-
-02       - Header + Content   none
-05       - Header + encrypted Content   16bit
-06       - Header + encrypted Content   16bit
-
-
 Crc is calculated over header and encrypted data
 Header and CRC itself is not encrypted
 
@@ -81,6 +71,11 @@ T  - starting character is always T
 01 - protocol
 02 - device number 
 03 - record type
+
+T060116 mein Inverter vermutlich ACK message
+06 - protocol
+01 - device number
+16 - record type
 
 
 
@@ -96,3 +91,43 @@ ALO_3250_3280
 
 T060137 Layout (protocol 06, device 01, record type 37)
 
+Shine commands
+
+001f -> Time set command
+0011 -> Change IP command
+
+
+
+    # Currently three types of layout descriptions are known:
+    # - "Clasic" inverters (eg. 1500-S) for Grott
+    # - "New type" Inverters  (TL-X, TL3, MAD, MIX, MAX, MIX, SPA, SPH )
+    # - "SPF" Inverters, not yet covered in the AutoCreateLayout, while detection interferes with Classic type detection.
+
+    
+    
+Kommand 80 ACK
+
+The command 80 = 0x50 contains one data byte which is always 0
+Maybe the data can be different from 0 but I did not see that so far.
+I guess 0 means ACK, and other values some kind of error
+The command has a CRC
+The transaction number gets incremented by 1 for every message
+It seems to be an ACK message as a data message with the same
+transaction number occurs right before the ACK message
+It occurs every 35 seconds with some seconds of deviation
+Maybe the time difference between the messages can be used to say
+something about the internal state of the sender or receiver
+ 
+ 
+Kommand 22 Ping
+
+A ping command has a sequence number which is incremented
+
+
+Kommand 55
+
+used by MID inverter
+
+sequence number gets incremented with every message
+when the message was blocked
+ 

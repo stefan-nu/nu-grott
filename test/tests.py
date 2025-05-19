@@ -9,8 +9,8 @@ sys.path.insert(0, '../src')
 sys.path.insert(1, 'src')
 
 from grottconf import Conf
-from utils     import validate_record, decrypt, byte_decrypt
-from grottdata import process_data, detect_layout
+from utils     import decrypt_as_str, byte_decrypt
+from grottdata import interprete_msg, detect_layout, validate_record
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,177 @@ logger = logging.getLogger(__name__)
 class TestMessageProcessing(unittest.TestCase):
     
     def setUp(self) -> None:
+        
+        # Energy Data type 4
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        self.raw_data_0104 = b'\
+\x00\x01\x00\x02\x00\xd9\x01\x04\x41\x48\x34\x34\x34\x36\x30\x34\
+\x37\x37\x4f\x50\x32\x34\x35\x31\x30\x30\x31\x37\x00\x00\x00\x00\
+\x00\x00\x02\x00\x00\x00\x2c\x00\x01\x00\x00\x0a\xb1\x09\xf9\x00\
+\x00\x00\x00\x00\x00\x15\x63\x00\x05\x00\x00\x0a\xb1\x00\x00\x08\
+\x44\x13\x84\x09\x04\x00\x03\x00\x00\x02\xb4\x08\xfc\x00\x04\x00\
+\x00\x03\x98\x09\x08\x00\x03\x00\x00\x02\xb5\x00\x00\x00\xf3\x00\
+\x00\x01\xc3\x00\x03\x0e\x47\x01\x6f\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x73\x0b\x4e\x0b\x48\x00\
+\x00\x00\x2d\x00\x59\x4e\x20\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x00\xf3\x00\x00\x01\xbf\x00\x00\x01\xbf\x00\
+\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+\x04\x00\x01\x11\x70\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+        # Configure command
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        # This command ( 00 13 ) sets the server address to server.growatt.com.
+        # 00 01 00 02     header
+        # 00 22           length
+        # 01 18           type = CONFIG
+        # 41..37          DataloggerId/a
+        # 00 13           config = SERVERADDRESS
+        # 00 12 ...       length + value
+
+        self.raw_data_configure = b'\
+\x00\x01\x00\x02\x00\x22\x01\x18\x41\x48\x34\x34\x34\x36\x30\x34\
+\x37\x37\x00\x13\x00\x12\x73\x65\x72\x76\x65\x72\x2e\x67\x72\x6f\
+\x77\x61\x74\x74\x2e\x63\x6f\x6d'
+
+        # Reboot Command
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        # 00 01 00 02     header
+        # 00 11           length
+        # 01 18           type = CONFIG
+        # 41..37          DataloggerId/a
+        # 00 20           config = REBOOT
+        # 00 01 31        1/a
+        self.raw_data_reboot_command = b'\
+\x00\x01\x00\x02\x00\x11\x01\x18\x41\x48\x34\x34\
+\x34\x36\x30\x34\x37\x37\x00\x20\x00\x01\x31'
+
+        # Response to reboot command
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        # 00 01 00 02     header
+        # 00 0f           length
+        # 01 18           type = CONFIG
+        # 41..37          DataloggerId/a
+        # 00 20           config = REBOOT
+        # 00              empty => ACK
+        self.raw_data_reboot_command_response = b'\
+\x00\x01\x00\x02\x00\x0f\x01\x18\x41\x48\x34\x34\x34\x36\x30\x34\x37\x37\x00\x20\x00'
+
+
+        # Ping command
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        self.raw_data_ping_message = b'\
+\x00\x01\x00\x02\x00\x0c\x01\x16\x41\x48\x34\x34\x34\x36\x30\x34\x37\x37'
+
+
+        # Client announce command
+        # https://www.vromans.org/johan/software/sw_growatt_wifi_protocol.html#sec-1-3-9
+        self.raw_data_client_annonce = b'\
+\x00\x01\x00\x02\x00\xd9\x01\x03\x41\x48\x34\x34\x34\x36\x30\x34\
+\x37\x37\x4f\x50\x32\x34\x35\x31\x30\x30\x31\x37\x00\x00\x00\x00\
+\x00\x00\x02\x00\x00\x00\x2c\x01\x01\x00\x00\x00\x00\x00\xff\x00\
+\xff\xff\xff\x00\x01\x11\x70\x17\x70\x30\x43\x30\x2e\x39\x20\x30\
+\x44\x30\x2e\x39\x20\x00\x01\x00\x00\x0d\xac\x00\x1e\x07\x35\x0a\
+\x55\x12\x91\x13\x9c\x4f\x50\x32\x34\x35\x31\x30\x30\x31\x37\x00\
+\x10\xf1\x71\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x07\x35\x0a\
+\x55\x12\x91\x13\x9c\x06\x40\x0a\x8c\x11\xf8\x15\x18\x08\x53\x02\
+\x03\x00\x2d\x00\x59\x07\xdf\x00\x07\x00\x17\x00\x05\x00\x2a\x00\
+\x05\x03\xe8\x03\xe8\x00\x64\x00\x64\x03\xe8\x03\xe8\x00\x00\x00\
+\x00\x47\x72\x6f\x77\x61\x74\x74\x20\x49\x6e\x76\x65\x72\x74\x65\
+\x72\x44\x43\x41\x41\x30\x34\x30\x34\x00\x00\x00\x05\x01\x30\x00\
+\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x13\xa6\x00\
+\xc8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+        # more data
+        # layout T060103X
+        # https://github.com/johanmeijer/grott/issues/525
+        
+        # layout: T06NNNNXMIN
+        # https://github.com/johanmeijer/grott/issues/637
+        self.raw_data_Growatt = b'\
+\x04\x0a\x00\x06\x03\x3f\x01\x04\x1f\x35\x2b\x41\x22\x3f\x26\x7e\x28\x5d\x77\
+\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x3f\x2e\x2d\x44\x37\x0f\x4a\x5f\x4f\x2c\x74\x74\x47\x72\x6f\x77\x61\x74\x74\
+\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x78\x70\x75\x57\x64\x6f\x74\x6a\
+\xcc\x78\x73\x72\x6e\x77\x61\x74\xfa\x42\xe5\x6f\x77\x61\x74\x74\x47\x77\xfc\
+\x77\x60\x74\x74\x47\xfc\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\
+\x72\x6f\x77\x61\x74\x6e\xf7\x72\x6f\x65\x4e\x74\x74\x5b\xa5\x7c\xf0\x68\x72\
+\x74\x4a\x72\x6f\x7c\xda\x7c\x81\x47\x7f\x6f\x77\x6a\xd0\x7c\x85\x72\x7e\x77\
+\x61\x7a\x97\x48\x0d\x60\x27\x6e\x27\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x75\xc7\x62\xcd\xae\x92\x72\x6f\x77\x45\x74\x74\x8e\x9f\x6f\x77\xcc\xd9\x74\
+\x47\x72\x6f\x77\x61\x25\x8c\x47\x72\x6f\x77\x61\x74\x2f\xf2\x72\x6f\x77\x61\
+\x74\x74\x47\x72\x6f\x77\x61\x57\x74\x47\x20\x85\x77\x61\x74\x76\x47\x72\x4a\
+\x67\x61\x74\x74\x62\x72\x6f\xa6\x38\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\
+\x72\x6f\x77\x61\x74\x74\xb8\x88\x6f\x4a\x61\x7b\x74\x00\x72\x6f\x6f\x18\x75\
+\x6f\x46\xe2\x6e\x7c\x61\x74\x75\x0a\x7e\x58\x7b\x5c\x3a\x54\x47\x7c\x6f\x77\
+\xa2\x24\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x6f\x77\x61\x74\x74\x47\x4e\x6f\x77\x61\x74\x74\x46\x72\x6f\x77\x61\x74\x74\
+\x5d\xc2\x6f\x77\x61\x55\x78\x72\x7e\xde\x77\x61\x74\x56\x47\x72\x2e\x78\x61\
+\x74\x74\x59\x72\x6f\x3c\x5c\x74\x74\x47\x6f\x6f\x77\x79\xd0\x74\x47\xcd\xca\
+\x77\x61\x74\x6b\x47\x72\xf5\xe7\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\
+\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\
+\x74\x47\x72\x6f\x77\x61\x53\x64\x47\x72\x77\x0e\x61\x74\x74\x47\x70\x6e\x77\
+\x61\x74\x74\x15\xc7\x6f\x6a\x61\x37\x6c\x3c\x79\x9e\x77\x71\x74\x64\x46\x73\
+\x6f\x77\x61\x74\x6d\x53\x72\x6f\x77\x61\x74\x74\x06\x7d\x6f\x77\x2a\x49\x74\
+\x47\x72\x6c\x7b\xeb\x74\x71\x47\x4b\x6f\x77\x61\x96\x74\x87\x72\x6c\x77\x71\
+\x74\x74\x47\x72\x6f\x76\x61\x74\x74\x77\x72\x5f\x77\x61\x74\x74\x47\x72\x6f\
+\x77\x61\x74\x67\xbd\x72\x6f\x64\x9b\x74\x74\x47\x72\x6f\x75\x61\x74\x74\x47\
+\x72\x2c\x25\x0d\x8a\xbe\x46\x0a\x66\xb3\x68\xb0\x74\x47\x72\x0f\x2f\xa1\x3d\
+\xb4\x47\x72\x6f\x77\x48\xcd\x74\x47\x72\x6f\x7b\x81\x78\xbc\x15\x10\x6f\x77\
+\x61\x76\x74\x47\x72\x4f\x77\x61\x75\x75\x46\x86\x6f\x76\x3d\x9e\x74\x47\x73\
+\x6f\x77\x61\x74\x76\x47\x72\x6f\x77\x61\x74\x74\x47\x7e\xdd\x7a\x4f\x74\x74\
+\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\
+\x74\x74\x47\x72\x6c\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\
+\x77\x61\x74\x74\x47\x16\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\
+\x72\x6f\x77\x61\x74\x74\x44\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\
+\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\
+\x61\x2c\x2c\x1f\x2a\x6f\x2f\x39\x2c\x2c\x1f\x2a\x37\x2f\x39\x2c\x2c\x1f\x2a\
+\x37\x2f\x39\x2c\x2c\x1f\x2a\x37\x2f\x39\x2c\x2c\x1f\x2a\x37\x2f\x39\x2c\x74\
+\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\xef\
+\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x5e\x4e\x6f\
+\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x6d\xbe\x47\x72\x6f\x77\x61\x74\x74\x47\
+\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\
+\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\
+\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x6f\xa2\xf0'
+        
+        
+        # layout T06221b
+        # https://github.com/johanmeijer/grott/issues/636
+        self.raw_data_EASTRON_SDM630 = b'\
+\x00\x01\x00\x06\x01\x1e\x22\x1b\x03\x2b\x2b\x47\x25\x36\x40\x77\x41\x3c\x77\
+\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x6f\x34\x78\x77\x77\x4d\x5f\x72\x77\x95\x42\x4d\x73\x44\x57\x59\x57\x40\x58\
+\x75\x43\x5b\x43\x55\x5a\x45\x76\x5e\x42\x45\x52\x42\x5a\x71\x5e\x5c\x44\x53\
+\x5a\x45\x6b\x5f\x5e\x46\x56\x5a\x40\x6b\x41\x5f\x40\x4f\x43\x58\x75\x45\x58\
+\x59\x52\x58\x46\x76\x46\x41\x4e\x4d\x47\x4c\x75\x5c\x57\x5b\x55\x46\x46\x69\
+\x42\x43\x45\x55\x44\x5a\x77\x5e\x42\x47\x4f\x42\x58\x77\x5c\x58\x5b\x4c\x44\
+\x5a\x73\x5e\x5d\x45\x59\x5a\x4d\x6b\x40\x5d\x41\x4f\x4d\x58\x75\x40\x58\x59\
+\x52\x58\x46\x69\x44\x43\x45\x4f\x4d\x58\x75\x5c\x5e\x5b\x51\x5a\x44\x6b\x45\
+\x56\x4e\x4f\x4d\x58\x70\x4b\x56\x59\x58\x58\x59\x77\x5c\x5f\x5b\x55\x4d\x5a\
+\x7e\x5e\x5a\x45\x55\x42\x45\x69\x41\x43\x46\x56\x44\x44\x70\x5c\x5d\x5b\x50\
+\x44\x44\x73\x45\x41\x4e\x4d\x45\x45\x74\x4b\x59\x59\x50\x58\x43\x75\x45\x5f\
+\x44\x4f\x45\x58\x7f\x4a\x5f\x41\x4f\x4c\x58\x71\x46\x5c\x40\x4f\x44\x58\x71\
+\x40\x5f\x47\x4f\x46\x58\x77\x5c\x5f\x5b\x51\x5a\x44\x6b\x42\x41\x47\x4d\x4d\
+\x44\x7e\x43\x5d\x59\x56\x41\x58\x74\x4b\x5b\x59\x57\x58\x47\x7e\x46\x41\x47\
+\x4d\x47\x4d\x73\x5c\x57\x5b\xca\x45'
+
+
+        # layout : T06211b
+        # https://github.com/johanmeijer/grott/issues/636
+        self.raw_data_CHINT_DTU666 = b'\
+\x00\x01\x00\x06\x00\xb4\x21\x1b\x03\x2b\x2b\x47\x25\x36\x40\x77\x41\x3c\x77\
+\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
+\x6f\x30\x78\x77\x70\x52\x7d\x43\x77\xeb\x47\x4d\x71\x5c\x58\x5b\x52\x4d\x41\
+\x69\x4a\x43\x44\x58\x43\x5a\x76\x5e\x5d\x45\x58\x5a\x4c\x6b\x40\x5d\x4f\x4f\
+\x47\x58\x75\x40\x57\x59\x59\x58\x45\x69\x47\x43\x46\x4f\x42\x58\x76\x5c\x58\
+\x5b\x50\x45\x5a\x7f\x5e\x42\x41\x53\x5a\x4d\x6b\x40\x56\x44\x4f\x4c\x58\x6a\
+\x40\x5e\x4e\x4f\x44\x58\x6a\x40\x58\x4f\x4f\x41\x58\x6a\x43\x5c\x40\x4f\x45\
+\x58\x76\x43\x57\x59\x58\x58\x59\x75\x44\x5f\x59\x52\x58\x44\x69\x42\x5f\x4e\
+\x4d\x59\x44\x69\x43\x58\x41\x4d\x44\x5a\x70\x47\x56\x5b\x4c\x44\x5a\x72\x41\
+\x5c\x5b\x55\x4d\x5a\x77\x5e\x5f\x59\x51\x58\x44\x69\x42\x43\x31\x4a'
+        
         self.raw_data_MOD700 = b'\
 \x00\x01\x00\x06\x01\x69\x50\x1b\x09\x33\x2c\x42\x20\x46\x4c\x77\x35\x2a\x77\
 \x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
@@ -137,38 +308,184 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        data = process_data(conf, self.raw_data_SPH6000)
-        #print(data)
-        #assert isinstance(data, dict)
-        assert (True) # how to check that processing was successful?
+        (num, msg) = validate_record(self.raw_data_SPH6000)
+        interprete_msg(conf, msg)
+        assert (num          == 839)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "NWCOA44008")
+
+
+    def test_parse_decoded_layout_QKB(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_QKB)
+        interprete_msg(conf, msg)
+        assert (num          == 223)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "QKB290929E")
+        
+        
+    def test_parse_decoded_layout_MOD700(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_MOD700)
+        interprete_msg(conf, msg)
+        assert (num          == 369)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "T06NN1b")
+    
+        
+    def test_parse_decoded_layout_CHINT_DTU666(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_CHINT_DTU666)
+        interprete_msg(conf, msg)
+        assert (num          == 188)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "T06NN1b")
+        
+        
+    def test_parse_decoded_layout_EASTRON_SDM630(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_EASTRON_SDM630)
+        interprete_msg(conf, msg)
+        assert (num          == 294)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "T06221b")
+        
+        
+    def test_parse_decoded_layout_Growatt(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_Growatt)
+        interprete_msg(conf, msg) 
+        assert (num          == 839)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "PYL0CH808M")
+        
+        
+    def test_parse_Client_announce(self):
+        conf = Conf("2.7.6") 
+    
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+    
+        (num, msg) = validate_record(self.raw_data_client_annonce)
+        interprete_msg(conf, msg)
+        assert (num          == 223)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "T020103")
+        
+        
+    def test_parse_Ping_message(self):
+        conf = Conf("2.7.6") 
+    
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+    
+        (num, msg) = validate_record(self.raw_data_ping_message)
+        interprete_msg(conf, msg)
+        assert (num          == 18)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "T020116")
     
     
-    def test_check_crc(self):
+    def test_parse_raw_data_0104(self):
+        conf = Conf("2.7.6") 
+        
+        # ensure configuration is suitable for the test
+        conf.pvoutput  = False 
+        conf.nomqtt    = True
+        conf.influx    = False
+        conf.extension = False
+        conf.verbose   = False
+        conf.store_unknown_records = False
+        
+        (num, msg) = validate_record(self.raw_data_0104)
+        interprete_msg(conf, msg)
+        assert (num          == 223)
+        assert (msg["valid"] == True)
+        assert (conf.layout  == "OP24510017")
+        
+
+    def test_validate_record(self):
         "Test if the frame validation function work"
-        result = validate_record(self.raw_data_SPH6000)
-        assert (result, True)
+        (num, msg) = validate_record(self.raw_data_SPH6000)
+        assert msg["valid"] == True
     
     
     def test_detect_layout_T060104X(self):
-        conf = Conf("2.7.6") 
-        layout = detect_layout(self.raw_data_SPH6000, conf)
+        conf       = Conf("2.7.6") 
+        (num, msg) = validate_record(self.raw_data_SPH6000)
+        layout = detect_layout(msg, conf)
         assert layout == "T060104X"
     
     
-    # Test if layout for SPH inverter gets created correctly
     def test_detect_layout_T060104XSPH(self):
-        conf = Conf("2.7.6") 
-        layout = detect_layout(self.raw_data_SPH6000, conf, "SPH")
+        conf       = Conf("2.7.6") 
+        (num, msg) = validate_record(self.raw_data_SPH6000)
+        layout = detect_layout(msg, conf, "SPH")
         assert layout == "T060104XSPH"
 
 
     def test_dec(self):
-        assert byte_decrypt(self.raw_data_SPH6000) == bytes.fromhex(decrypt(self.raw_data_SPH6000))
+        assert byte_decrypt(self.raw_data_SPH6000) == bytes.fromhex(decrypt_as_str(self.raw_data_SPH6000, 8))
 
 
     def test_decryption(self):
         # Disabled ATM
-        return
+        
         raw_data = b'\
 \x01\xc4\x00\x06\x03\x3f\x01\x04\x0d\x22\x2c\x40\x20\x47\x44\x74\x2a\x2e\x77\
 \x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
@@ -216,28 +533,110 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
 \x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\x6f\x77\x61\x74\x74\x47\x72\
 \x6f\xa5\x2a'
 
+        conf       = Conf("2.7.6") 
+        (num, msg) = validate_record(raw_data)
+        layout = detect_layout(msg, conf)
+        assert (num          == 839)
+        assert (msg["valid"] == True)
+        assert (layout       == "T060104X")
+
         expected = "\
-01c20006033f01044a50433741333033584100000000000000000000000000000000000000004\
-e57434f4134343030380000000000000000000000000000000000000000160a1c0a2d09030000\
-007c000500002c240f20012400002c3200000000000000000001400005d902b0089900cf00000\
-000000000000000000000000000000000000000000000000000000000000000000000002c5a13\
-8a0934003100002c4800000000000000000000000000000000000000000000000000070000e13\
-e04656e3e000000070000e65b0000000000000000000000000000000000000000000000000000\
-0000000000000000000000000000000000000000000000000000000000000000e746011a01020\
-110000000ba0f1b0f340000000000000000000000000000000000000000000000000000000000\
+01c40006033f01044a50433741333033584100000000000000000000000000000000000000004\
+e57434f4134343030380000000000000000000000000000000000000000160a1c0a2f09030000\
+007c000500003afc0e96019500003b3900000000000000000001400005d902b1089b00cf00000\
+000000000000000000000000000000000000000000000000000000000000000000000003ab913\
+870932004100003a6300000000000000000000000000000000000000000000000000080000e13\
+f04656f35000000080000e65c0000000000000000000000000000000000000000000000000000\
+0000000000000000000000000000000000000000000000000000000000000000e747011d01020\
+114000000ba0e900eac0000000000000000000000000000000000000000000000000000000000\
 00016e00000000000000000000000000000000000003e80464000500000000000000040000000\
-000000000000000000000000000ba0000000000000000000000000000000000000000170c0000\
-0000000000000000170c000016a80000000000000000000016a80000001400010705000000000\
+000000000000000000000000000ba0000000000000000000000000000000000000000238c0000\
+0000000000000000238c000016a80000000000000000000016a80000001400010706000000000\
 02300007dab00000001000097fe00000000000000000000000000000000000000290000ccf300\
 00000000000000000000000000000000000000000000000000000000000000000003e80000000\
 00000000000000000000000000000000000000000000000000000000000000000000000000000\
 00000000000000000000000000000000000000000000000000000000000000000000000000000\
 00000000000046504e100000000016e0000000003fa0000000000000000000000000000000700\
-00e5460000000600004ece00002db40000157c000000070000000000000000000000000000000\
+00e5460000000600004ece00003afc000016a8000000070000000000000000000000000000000\
 00000000000000000000000000000000000000000000000000000000000000000000000000000\
 00000000000000000000000000000000000000000000000000000000000000000000000000000\
 00000000001000000000000000000000000000000000000000000000000000000000000000000\
 00000000000000000000000000000000000000000000000000000000000000000000000000000\
-000000000000000000000000000000000000000000000000000000000366f"
+000000000000000000000000000000000000000000000000000000000d24b"
 
-        assert decrypt(raw_data) == expected
+        result = decrypt_as_str(raw_data, 8)
+        assert (result == expected)
+        
+        # with open("decrypted.txt", "w") as f:
+        #     print(result, file=f)
+        #     print(file=f)
+        # f.close()
+
+
+    
+    # def test_cmd_80(self):
+    #     conf       = Conf("2.7.6") 
+    #
+    #     # The command 80 = 0x50 contains one data byte which is always 0
+    #     # Its transaction number gets incremented by 1 for every message
+    #     # The usage of the message is inknown currently. 
+    #     # Maybe it is a kind of ping message. 
+    #
+    #     # \todo crc seems different for these packages
+    #     data1 = b'\x00\x1d\x00\x06\x00\x03\x01\x50\x00\x87\xa7'
+    #     data2 = b'\x00\x39\x00\x06\x00\x03\x01\x50\x00\x2c\x8b'
+    #     data3 = b'\x00\x38\x00\x06\x00\x03\x01\x50\x00\xe0\x4a'
+    #     data4 = b'\x00\x37\x00\x06\x00\x03\x01\x50\x00\xa0\x0a'
+    #     data5 = b'\x00\x36\x00\x06\x00\x03\x01\x50\x00\x6c\xcb'
+    #     data6 = b'\x00\x35\x00\x06\x00\x03\x01\x50\x00\x79\x8b'
+    #     data7 = b'\x00\x34\x00\x06\x00\x03\x01\x50\x00\xb5\x4a'
+    #     data8 = b'\x00\x33\x00\x06\x00\x03\x01\x50\x00\x53\x0b'
+    #
+    #     tests = [data1, data2, data3, data4, data5, data6, data7, data8]
+    #
+    #     for test in tests :
+    #         (num, msg) = validate_record(test)
+    #
+    #         assert (num               == 11)
+    #         assert (msg["protocol"]   ==  6)
+    #         assert (msg["len"]        == 11)
+    #         assert (msg["dat_len"]    ==  3)
+    #         assert (msg["cmd"]        == 80)
+    #         assert (msg["device_no"]  ==  1)
+    #         assert (msg["crc_len"]    ==  2)
+    #         assert (msg["layout"]     ==  "T060150")
+    #         assert (msg["record_num"] ==  "0150")
+    #         assert (msg["valid"]      ==  True)
+    #
+    #         layout = detect_layout(msg, conf, "SPH")
+    #         assert layout == "T060150SPH"
+
+
+    def test_cmd_19(self):
+        conf  = Conf("2.7.6") 
+
+        data1 = b'\x00\x01\x00\x06\x00\x35\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x11\x35\x38\x3a\x42\x46\x3a\x32\x35\x3a\x34\x37\x3a\x36\x44\x3a\x43\x36\x06\x13'
+        data2 = b'\x00\x01\x00\x06\x00\x33\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x11\x00\x0f\x31\x39\x32\x2e\x31\x36\x38\x2e\x31\x37\x38\x2e\x31\x39\x32\x04\xb2'
+        data3 = b'\x00\x01\x00\x06\x00\x28\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x12\x00\x04\x35\x32\x37\x39\xe9\x58'
+        data4 = b'\x00\x01\x00\x06\x00\x24\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x13\x00\x00\xff\xbf'
+        data5 = b'\x00\x01\x00\x06\x00\x38\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\x00\x14\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x6b\x02'
+        data6 = b'\x00\x01\x00\x06\x00\x2b\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x15\x00\x07\x33\x2e\x31\x2e\x31\x2e\x30\x1a\x71'
+        
+        tests = [data1, data2, data3, data4, data5, data6]
+        
+        for test in tests :
+            (num, msg) = validate_record(test)
+    
+            assert (num               == 11)
+            assert (msg["protocol"]   ==  6)
+            assert (msg["len"]        == 11)
+            assert (msg["dat_len"]    ==  3)
+            assert (msg["cmd"]        == 80)
+            assert (msg["device_no"]  ==  1)
+            assert (msg["crc_len"]    ==  2)
+            assert (msg["layout"]     ==  "T060150")
+            assert (msg["record_num"] ==  "0150")
+            assert (msg["valid"]      ==  True)
+    
+            layout = detect_layout(msg, conf, "SPH")
+            assert layout == "T060150SPH"

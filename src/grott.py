@@ -1,3 +1,5 @@
+# coding=utf-8
+
 """nu-grott Growatt monitor base"""
 
 
@@ -68,7 +70,7 @@ if conf.mode == 'proxy':
         sys.exit(1)
 
 if conf.mode == 'sniff':
-    sniff = Sniff(conf)
+    sniff = Sniff(conf) # call initializer of grottsniffer.py
     try:
         sniff.main(conf)
     except KeyboardInterrupt:

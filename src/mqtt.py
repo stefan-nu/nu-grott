@@ -2,11 +2,10 @@
 import paho.mqtt.publish as publish
 
 
-def mqtt_processing(conf, header, jsonmsg, deviceid):
+def mqtt_processing(conf, msg, jsonmsg, deviceid):
     
-    # if meter data use mqtttopicname topic
-    record_type = header[14:16]
-    if (record_type in ("20", "1b")) and (conf.mqttmtopic == True) :
+    # if meter data use mqtt_topic_name topic
+    if (msg["cmd"] in (32, 27)) and (conf.mqttmtopic == True) :
         mqtttopic = conf.mqttmtopicname
     else :
         # test if invertid needs to be added to topic
