@@ -1,5 +1,10 @@
 # do not track the local grott configuration file
 grott.ini
+unknown_records.hex
+unknown_records.txt
+messages_encrypted.txt
+messages.txt
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
