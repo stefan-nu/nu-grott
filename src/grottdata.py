@@ -14,36 +14,183 @@ from datetime  import datetime
 from PV_output import processPVOutput, create_PV_date_time_str
 from influxDB  import influx_processing
 from mqtt      import mqtt_processing
-from utils     import write_Dict2file, convertBin2Str, decrypt_as_bin# , convert_Dict2str
+from utils     import write_Dict2file, convertBin2Str, decrypt_as_bin, convert_Dict2str, hex_dump, to_hexstring
 from extension import extension_processing
 from crc       import modbus_crc
 
 
 logger = logging.getLogger(__name__)
 
+
+def is_ping_msg(cmd):
+    return (cmd == get_command_value("ping"))
+
+
+def is_get_sm_values_msg(cmd):
+    return (cmd == get_command_value("get_sm_values"))
+
+
+def is_Datalogger_msg(cmd):
+    return (cmd == get_command_value("Datalogger"))
+
+
 def decode_ping_message(msg):
-    
     # The format of a ping message is 
-    # Modbus Header    6 bytes
-    # Device number    1 byte
-    # Ping command 16  1 byte
-    # Serial number   10 bytes
-    # Zero            20 bytes
+    # Modbus Header    6 bytes consisting of
+    # - Sequence number  2 bytes, increasing with every ping message
+    # - Protocol version 2 bytes, typical values are 2, 5 or 6
+    # - data length      2 bytes, typical value 34
+    # Data consisting of 
+    # - Device number    1 byte
+    # - command = 16     1 byte
+    # - Serial number   10 bytes of the data logger device
+    # - Zeropadding     20 bytes
+    # - CRC              2 bytes depending on protocol version
+    #
+    # The datalogger (client) sends a ping to the server (Growatt site) regularly.
+    # In my case it was every 35 seconds. The sequence number gets incremented
+    # for every ping message.
+    # The receiver of the ping message responds with a ping message
+    # that holds the exact same data content and sequence number as the 
+    # received ping message.
     
-    #print(convert_Dict2str(msg, "\n", exclude = {"dat_str", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
+    if not is_ping_msg(msg["cmd"]): return 
+    
+    #logger.debug(convert_Dict2str(msg, "\n", exclude = {"dat_str", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
     
     sn_len   = 10
     sn_start = 0
     sn_end   = sn_start + sn_len
     sn_str   = str(msg["payload_bin"][sn_start:sn_end])
-    ping_log_str = "Message: {}, seq: {:3}, SN: {}, from: {}".\
-        format(msg["cmd_name"], msg["seq_num"], sn_str, msg["from"][0])
-    logger.info(ping_log_str)
+    logger.debug("Message: {}, seq: {:3}, SN: {}, from: {}".\
+        format(msg["cmd_name"], msg["seq_num"], sn_str, msg["from"][0]))
     return
 
+def decode_get_sm_value_message(msg) :
+    # sm means smart meter
+    #
+    # The format of a get_sm_values message is 
+    # Modbus Header    6 bytes consisting of
+    # - Sequence number  2 bytes, increasing with every get_sm_values message
+    # - Protocol version 2 bytes, typical values are 2, 5 or 6
+    # - data length      2 bytes, typical value 270
+    # Data consisting of 
+    # - Device number    1 byte
+    # - command = 32     1 byte
+    # - Serial number   10 bytes of Datalogger device
+    # - Zeropadding     20 bytes
+    # - Serial number   10 bytes of Inverter device
+    # - Zeropadding     20 bytes
+    # - binary data      X bytes that presumably hold smart meter measurements \todo decode them
+    # - Serial number   10 bytes of Datalogger device
+    # - Zeropadding     20 bytes 
+    # - CRC              2 bytes depending on protocol version
+    #
+    # In Response to a get_sm_values message the receiver responds
+    # with a get_sm_values message with the same sequence number and
+    # a 1 byte response code
+    # I only saw the response code 0 which probably means ok
+    # I guess there are other repsonse codes which indicate errors (that I never saw).
+    
+    if not is_get_sm_values_msg(msg["cmd"]): return
+    
+    logger.debug("Message: {}, seq: {:3}, len: {}, from: {}".\
+        format(msg["cmd_name"], msg["seq_num"], msg["len"], msg["from"][0]))
+    
+    #logger.debug(convert_Dict2str(msg, "\n", exclude = {"dat_str", "dat_bin", "payload_str", "payload_bin", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
+    #logger.debug(hex_dump(msg["payload_bin"], 16))
+    
+    FILENAME_HEX = "get_sm_values.txt"
+    with open(FILENAME_HEX, "a") as f:
+        print("{}, seq: {}, len: {} ,from: {}\n{}\n".\
+              format(msg["rec_time"], msg["seq_num"], msg["len"], msg["from"][0], to_hexstring(msg["dat_bin"])), file=f)
+    f.close()
+    
+    FILENAME_HEX = "get_sm_values.hex"
+    with open(FILENAME_HEX, "a") as f:
+        print("{}\n".format(to_hexstring(msg["dat_bin"])), file=f)
+    f.close()
+    return 
 
-def is_ping_msg(cmd):
-    return (cmd == get_command_value("ping"))
+
+def decode_Datalogger_message(msg) :
+    # sm means smart meter
+    #
+    # The format of a DataloggerID message is 
+    # Modbus Header    6 bytes consisting of
+    # - Sequence number  2 bytes, always 1
+    # - Protocol version 2 bytes, typical values are 2, 5 or 6
+    # - data length      2 bytes, typical value ...
+    # Data consisting of 
+    # - Device number    1 byte
+    # - command = 25     1 byte
+    # - Serial number   10 bytes of Datalogger device
+    # - Padding \x00    20 bytes
+    # - A register or parameter number
+    # - The value of the registers
+    # - CRC              2 bytes depending on protocol version
+    #
+    # The server sends a DataloggerID Request command with a start and as
+    # stop number. 
+    # it has sequence number 1 data
+    # - Device number    1 byte
+    # - command = 25     1 byte
+    # - Serial number   10 bytes
+    # - first parameter  2 bytes
+    # - last  parameter  2 bytes 
+    #
+    #
+    # The client responds to it with a series of consecutive DataloggerID responses.
+    # All have the same sequence number as the request
+    # Every message sends the value of one parameter in the requested range 
+    # start..stop 
+    # 
+    #
+    # Example request x00 x04 x00 x15 = start 4(=x4), stop 21(=x15)
+    #
+    # Example response
+    # same of the response values a prepended by binary values which have noknown meaning
+    #
+    #  x04 = Update interall = x00 x01 5
+    #  x05 = ?               = x00 x01 1
+    #  x06 = ?               = x00 x02 32
+    #  x07 = ?               = x00 x01 "X"
+    #  x08 = Data Logger SN  = x00 x0a XGD6CF42W6
+    #  x09 = ?               = x00 x04 4x"X"
+    #  x0A = ?               = x00 x01 0
+    #  x0B = URL             = ##192.168.3.35/app/xml/#8081#
+    #  x0C = ?               = x00 x0f 15x"X"
+    #  x0D = ?               = x00 x02 16
+    #  x0E = IP              = 192.168.5.1
+    #  x0F = Port            = 80
+    #  x10 = MAC             = 58:BF:25:XX:XX:XX
+    #  x11 = IP              = 192.168.178.19
+    #  x12 = Port            = 5379
+    #  x13 = ?               = all zeros
+    #  x14 = ?               = x00 x14 + 20 times "X"
+    #  x15 = FW              = 3.1.1.0
+    #  x1f = Data/time       = x00 x13 2017-07-01 23:59:59 (why is it an outdated timestamp?, looks like a time format rather than a timestamp)
+    #  x4c = RSSI            = x00 x03 -54
+    
+    if not is_Datalogger_msg(msg["cmd"]): return
+    
+    logger.debug("Message: {}, len: {}, from: {}".\
+        format(msg["cmd_name"], msg["len"], msg["from"][0]))
+    
+    #logger.debug(convert_Dict2str(msg, "\n", exclude = {"dat_str", "device_no", "rec_time", "dat_bin", "payload_str", "payload_bin", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
+    print(hex_dump(msg["payload_bin"], 16))
+    
+    FILENAME_HEX = "datalogger.txt"
+    with open(FILENAME_HEX, "a") as f:
+        print("{}, seq: {}, len: {} ,from: {}\n{}\n".\
+              format(msg["rec_time"], msg["seq_num"], msg["len"], msg["from"][0], to_hexstring(msg["dat_bin"])), file=f)
+    f.close()
+    
+    FILENAME_HEX = "datalogger.hex"
+    with open(FILENAME_HEX, "a") as f:
+        print("{}\n".format(to_hexstring(msg["dat_bin"])), file=f)
+    f.close()
+    return 
 
 
 # create JSON message (first create obj dict and then convert to a JSON message)
@@ -113,7 +260,7 @@ known_commands = {
     "preset_multiple_registers"  : 16,  # x10: preset multiple registers
     "ping"                       : 22,  # x16: shows if communication is workinmg
     "ServerCmd"                  : 24,  # x18: command originating from a Growatt server
-    "DataloggerID"               : 25,  # x19: datalogger identification
+    "Datalogger"                 : 25,  # x19: get and set datalogger parameters
     "smart_meter1"               : 27,  # x1b: for smart meter
     "smart_meter2"               : 30,  # x1e: for smart meter 
     "get_sm_values"              : 32,  # x20: request to receive smart meter measurements
@@ -305,10 +452,10 @@ def validate_record(in_data: bytes):
         "crc_len"       : crc_len,       # for Modbus this is always 2bytes
         "crc"           : crc,           # checksum the modbus message had at its end
         "valid"         : crc_valid,     # indicates that the dictionary holds a valid Modbus message
+        "dat_bin"       : decrypted_bin, # decrypted message including header but without CRC as binary stream
         "dat_str"       : decrypted_str, # decrypted message including header but without CRC as hex string
-        "dat_bin"       : decrypted_bin,  # decrypted message including header but without CRC as binary stream
-        "payload_bin"   : decrypted_bin[1*(HEADER_LEN+2) : ], 
-        "payload_str"   : decrypted_str[2*(HEADER_LEN+2) : ],
+        "payload_bin"   : decrypted_bin[1*(HEADER_LEN+2) : ], # decrypted payload as binary stream
+        "payload_str"   : decrypted_str[2*(HEADER_LEN+2) : ], # decrypted payload as hex string
         "layout"        : "T{:02x}{}".format(protocol, record_num),
         "rec_time"      : datetime.now().replace(microsecond=0).isoformat(), # time when the message was received 
         #"header"       : convertBin2Str(in_data[0:8]) # \todo remove later
@@ -479,12 +626,15 @@ def AutoCreateLayout(conf, msg) :
 
 def interprete_msg(conf, msg):
     
+    logger.setLevel(conf.loglevel.upper()) # without this no logging occurs in this file
+    
     if msg['len'] <= conf.minrecl : 
         logger.debug("Message is shorter than minimum required record length, ignore it")
         return
 
-    if is_ping_msg(msg["cmd"]):
-        decode_ping_message(msg)
+    decode_ping_message        (msg)
+    decode_get_sm_value_message(msg)
+    decode_Datalogger_message  (msg)
 
     # Create layout that fits to the received message
     layout = AutoCreateLayout(conf, msg)
