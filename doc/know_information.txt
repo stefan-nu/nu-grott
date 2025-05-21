@@ -123,6 +123,12 @@ Kommand 22 Ping
 
 A ping command has a sequence number which is incremented
 
+Header, Device, Cmd
+10 bytes Serial Number of Datalogger in ASCII
+20x binary zero (not sure if they have a meaning)
+
+
+
 
 Kommand 55
 
@@ -130,4 +136,13 @@ used by MID inverter
 
 sequence number gets incremented with every message
 when the message was blocked
+
+Historical buffered record means old measurement data that have 
+been saved somewhere
+
+Kommand 56
+
+Growatt server schickt Cmd 56 an Inverter mit dat_len > 250
+Inverter antwortet mit Cmd 56 mit dat_len 3 gleiche Seq
+Sequence number wird erhöht
  

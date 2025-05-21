@@ -2,12 +2,25 @@
 import textwrap
 
 
-def write_structure_to_file(file_name, msg):
+def convert_Dict2str(dictionary, separator = "", exclude={}):
+    dict_str = ""
+    for key, value in dictionary.items() :
+        if key not in exclude:
+            if isinstance(value, bytes):
+                dict_str += '{:>12}: {:6}{}'.format(key, str(value), separator)
+            elif isinstance(value, tuple) :
+                # printing of tuples is not implemented yet
+                continue
+            else :
+                dict_str += '{:>12}: {:6}{}'.format(key, value, separator)
+    return dict_str
+
+
+def write_Dict2file(file_name, msg):
     
     with open(file_name, "a") as f:
-        for key, value in msg.items():
-            print('{0:>12}: {1:6}'.format(key, value), file=f)
-        print(file=f) # terminate structure with a newline
+        dict_str = convert_Dict2str(msg) 
+        print("{}\n".format(dict_str), file=f)
     f.close()
 
 
@@ -59,7 +72,7 @@ def crypt(binary_data: bytes, start):
         crypted_byte = [binary_data[i+start] ^ KEY[j]]
         crypted_binary_data += crypted_byte
 
-    return crypted_binary_data
+    return bytes(crypted_binary_data)
 
 
 # encrypt / decrypt data.

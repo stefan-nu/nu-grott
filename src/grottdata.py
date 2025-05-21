@@ -14,22 +14,46 @@ from datetime  import datetime
 from PV_output import processPVOutput, create_PV_date_time_str
 from influxDB  import influx_processing
 from mqtt      import mqtt_processing
-from utils     import write_structure_to_file, convertBin2Str, decrypt_as_bin #decrypt_as_str
+from utils     import write_Dict2file, convertBin2Str, decrypt_as_bin# , convert_Dict2str
 from extension import extension_processing
 from crc       import modbus_crc
 
 
 logger = logging.getLogger(__name__)
 
+def decode_ping_message(msg):
+    
+    # The format of a ping message is 
+    # Modbus Header    6 bytes
+    # Device number    1 byte
+    # Ping command 16  1 byte
+    # Serial number   10 bytes
+    # Zero            20 bytes
+    
+    #print(convert_Dict2str(msg, "\n", exclude = {"dat_str", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
+    
+    sn_len   = 10
+    sn_start = 0
+    sn_end   = sn_start + sn_len
+    sn_str   = str(msg["payload_bin"][sn_start:sn_end])
+    ping_log_str = "Message: {}, seq: {:3}, SN: {}, from: {}".\
+        format(msg["cmd_name"], msg["seq_num"], sn_str, msg["from"][0])
+    logger.info(ping_log_str)
+    return
+
+
+def is_ping_msg(cmd):
+    return (cmd == get_command_value("ping"))
+
 
 # create JSON message (first create obj dict and then convert to a JSON message)
 def convert_defined_keys_to_JSON_msg(defined_key, buffered, jsondate, deviceid):
 
     jsonobj = {
-                "device"   : deviceid,
-                "time"     : jsondate,
-                "buffered" : buffered,
-                "values"   : {}
+        "device"   : deviceid,
+        "time"     : jsondate,
+        "buffered" : buffered,
+        "values"   : {}
     }
 
     for key in defined_key :
@@ -80,6 +104,7 @@ def is_not_inverter_or_smart_meter(conf, recordtype: bytes) -> bool:
     return not is_inverter_or_smart_meter(conf, recordtype)
 
 
+# this dictionary defines all known commands, aka record or functions
 known_commands = {
 #    cmd name                    :  int # hex: description
     "read_holding_registers"     :  3,  # x03: read holding registers
@@ -94,10 +119,19 @@ known_commands = {
     "get_sm_values"              : 32,  # x20: request to receive smart meter measurements
     "MID_series"                 : 55,  # x37: occurs for MID 25KTL3-XH inverter 
     "unknown"                    : 56,  # x38: occurs for MID 25KTL3-XH inverter
-    "acknowledgmente"            : 80,  # x50: historical buffered record type
+    "acknowledge"                : 80,  # x50: historical buffered record type
 }
 
-# this function returns a dictionary with all known commands, aka record
+
+def get_command_value(string):
+    
+    for (cmd_name, cmd_value) in known_commands.items() :
+        if(cmd_name == string) :
+            return cmd_value
+
+    return "unknown"
+
+
 def get_command_name(command):
     
     for (cmd_name, cmd_value) in known_commands.items() :
@@ -158,6 +192,11 @@ def detect_layout(msg, conf, inverter_type = "default") -> str:
 
 
 """ validata data record on length and CRC"""
+# This function takes the byte stream received from a socket and tries to
+# interpret it as a Modbus RTU message
+# If a valid message is found it will be separated into its parts and
+# returned as as dictionary.
+#
 # returns 
 # 1. the number of bytes that have been processed from the provided input data stream
 # 2. a dictionary with the decoded message
@@ -206,7 +245,7 @@ def validate_record(in_data: bytes):
     # Modbus defines a 6 bytes long header
     HEADER_LEN   = 6
     transaction  = int.from_bytes(in_data[0:2], "big") # currently this is never used, but it might be helpful for some analysis
-    protocol     = int.from_bytes(in_data[2:4], "big")
+    protocol     = int.from_bytes(in_data[2:4], "big") # protocol version used for the message
     anounced_len = int.from_bytes(in_data[4:6], "big") # number of bytes the payload data (without header and CRC) is long according to the header
     
     # Modbus defines data from byte 7 to the end as payload
@@ -267,13 +306,16 @@ def validate_record(in_data: bytes):
         "crc"           : crc,           # checksum the modbus message had at its end
         "valid"         : crc_valid,     # indicates that the dictionary holds a valid Modbus message
         "dat_str"       : decrypted_str, # decrypted message including header but without CRC as hex string
-        #"dat_bin"      : decrypted_bin, # decrypted message including header but without CRC as binary stream
+        "dat_bin"       : decrypted_bin,  # decrypted message including header but without CRC as binary stream
+        "payload_bin"   : decrypted_bin[1*(HEADER_LEN+2) : ], 
+        "payload_str"   : decrypted_str[2*(HEADER_LEN+2) : ],
         "layout"        : "T{:02x}{}".format(protocol, record_num),
         "rec_time"      : datetime.now().replace(microsecond=0).isoformat(), # time when the message was received 
         #"header"       : convertBin2Str(in_data[0:8]) # \todo remove later
     }
     
-    
+    dat_str_len     = len(decrypted_str)
+    payload_str_len = len(message["payload_str"]) 
     
     return (msg_length, message)
 
@@ -441,6 +483,9 @@ def interprete_msg(conf, msg):
         logger.debug("Message is shorter than minimum required record length, ignore it")
         return
 
+    if is_ping_msg(msg["cmd"]):
+        decode_ping_message(msg)
+
     # Create layout that fits to the received message
     layout = AutoCreateLayout(conf, msg)
     conf.layout = layout # save layout in conf to being passed to extension
@@ -449,7 +494,7 @@ def interprete_msg(conf, msg):
     if is_not_inverter_or_smart_meter(conf, msg["cmd"]) or conf.layout == "none":
         if conf.store_unknown_records == True : # store all found unknown records to analyse them later
             FILENAME_HEX = "unknown_records.hex" 
-            write_structure_to_file(FILENAME_HEX, msg)
+            write_Dict2file(FILENAME_HEX, msg)
         
         if msg["cmd"] not in (3, 4, 22, 24, 25, 32, 55, 56, 80) : # log only protocols I did not find yet
             logger.debug("Ignore record %s as there is no matching layout (yet)", msg["cmd"])

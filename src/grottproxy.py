@@ -189,23 +189,18 @@ class Proxy:
                     # ease later processing of the message 
                     (processed_bytes, msg) = validate_record(msg_buffer)
                     
-                    print("\n") # separate new message from old one
-                    logger.info("Received {} (={}) message, with sequence {} from: {} "\
-                                .format(msg["cmd_name"],  msg["cmd"], msg["seq_num"], self.s.getsockname()))
-                    #logger.debug("Socket: %s", self.channel[self.s]) 
-                    #logger.debug("Decrypted message:\n{0}".format(format_multi_line("", msg["dat_str"], 120)))
-                    
-                    with open("messages_encrypted.txt", "a") as f:
-                        print(msg["rec_time"]+": "+to_hexstring(msg_buffer[0:processed_bytes]), file=f)
-                        print(file=f)
-                    f.close()
-                    
-                    # with open("messages_decrypted.txt", "a") as f:
-                    #     print(msg["rec_time"]+": "+to_hexstring(msg["dat_bin"]), file=f)
-                    #     print(file=f)
-                    # f.close()
+                    # filter out corrupt messages
+                    # if the length is wrong this happens most likely if a
+                    # socket read operation was performed in the middle of 
+                    # a transmission. In this case the message can be fixed, by
+                    # appending data that was received in the following socket
+                    # read operation, this happens often if debugging is active
+                    if msg['valid'] == False :
+                        return
                     
                     if processed_bytes > 0 :
+                    
+                        msg.update({"from" : self.channel[self.s].getpeername()})
                     
                         # keep the unprocessed message to forward it later
                         self.data = msg_buffer[0 : processed_bytes] 
@@ -215,14 +210,19 @@ class Proxy:
                         # message or part of it 
                         msg_buffer = msg_buffer[processed_bytes:]
                         
-                        # filter out corrupt messages
-                        # if the length is wrong this happens most likely if a
-                        # socket read operation was performed in the middle of 
-                        # a transmission. In this case the message can be fixed, by
-                        # appending data that was received in the following socket
-                        # read operation, this happens often if debugging is active
-                        if msg['valid'] == False :
-                            return
+                        #logger.info("\nReceived {} (={}) message, dat_len: {}, with sequence {} from: {} "\
+                        #            .format(msg["cmd_name"],  msg["cmd"], msg["dat_len"], msg["seq_num"], self.channel[self.s].getpeername()))
+                        #logger.debug("Socket: %s", self.channel[self.s]) 
+                        
+                        with open("messages_encrypted.txt", "a") as f:
+                            print(msg["rec_time"]+": "+to_hexstring(msg_buffer[0:processed_bytes]), file=f)
+                            print(file=f)
+                        f.close()
+                        
+                        # with open("messages_decrypted.txt", "a") as f:
+                        #     print(msg["rec_time"]+": "+to_hexstring(msg["dat_bin"]), file=f)
+                        #     print(file=f)
+                        # f.close()
                 
                         block_message = self.is_blocked_msg(conf, msg)
                         
