@@ -6,7 +6,7 @@ import ipaddress
 from os import walk
 from utils import format_multi_line, convert2bool
 import logging
-#from test import test_cmd_line
+
 
 # logging.basicConfig(level=logging.INFO)
 logger  = logging.getLogger(__name__)
