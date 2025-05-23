@@ -1,37 +1,25 @@
 1. Verhindern dass zu viele Daten zu PVOutput gesendet werden
 PVOut: Update refused for {'KNN0D7403B'} due to time limitation
 
-2. Korrekte Daten an PVOutput senden
-
-3. Kurze Pakete verarbeiten
-Data less then minimum record length, data not processed
-
-4. Grott data ack record or data record not defined, no processing done
+4. Decode all message types
 
 5. Unit Tests erstellen
 
 6. Test Coverage berechnen
 
 
-In validate_record it is not clear why first is checked for protocol 05/06
-and then later is checked for protocol 02, correct comment as it does not
-say anything about 02 and the other protocols, even better define the 
-protocols and add a reference on the description
-
-Move CRC to its own module or better use a crc library
-
-Is the code running in polling mode? if so it might be better
-to use interrupt mode
+Move all socket handling to separate file
+run sockets in individual threads
+allow unlimited number of parallel sockets 
+Do not poll the sockets. Use callbacks instead
 
 Send commands to inverter, e.g. to set time automatically
 
-Dokumentation der Funktionsprototypen fehlt
+Add full Documentation using Doxygen or similar
 
 Some parameters are missing from grott.ini documentation -> add them
 
 Zeitstring an pvoutput war 12:40am das muss 00:40am sein, grott.ini time = server
-dateoffset = 136 was bedeutet das?
-Inverter Zeit ist oft um stunden falsch
 
 Statistik erstellen welche Kommandos wie oft empfangen wurden
 
@@ -45,6 +33,33 @@ number of available devices.
 Ack Messages should only be forwarded if before a data message was forwarded
 Currently all ACK Messages are forwarded 
 
-Run each socket in its own thread
-
 Ensure every 5 min a message is send to PVoutput
+If there is no new data message collect one from the inverter
+if the data is the same calculate energy based on current power
+
+Understand layouts and make them understandable
+
+save data to other databases mysql, postgresql etc.
+save data with higher timeresolution
+
+Log all messages for later analysis
+
+Log all messages send to PV output for analysis
+
+Handling of received data is done in Nibbles.
+Thus the binary data is first converted to nibbles 
+The locations in the layouts are defined for nibbles too
+\todo check if there is a reason to do so, if not change that to byte addresses
+
+In layout the start location is named "value" change that to "start" or "loc"
+Good names would be "loc", "len", "typ", "div", "inc"
+
+In layout the parameter "incl" has values yes/no change that to boolean
+In layout the parameter "type" uses self defined strings like num/numx etc.
+Better use standard types
+
+In layout there is missing an description field to indicate what a measurement
+value is. Add it to the layouts. If there is a human readable description field
+the names can be made shorter and less readable.
+
+

@@ -61,9 +61,9 @@ def decode_ping_message(msg):
     sn_len   = 10
     sn_start = 0
     sn_end   = sn_start + sn_len
-    sn_str   = str(msg["payload_bin"][sn_start:sn_end])
-    logger.debug("Message: {}, seq: {:3}, SN: {}, from: {}".\
-        format(msg["cmd_name"], msg["seq_num"], sn_str, msg["from"][0]))
+    sn_str   = str(msg["payload_bin"][sn_start:sn_end]) # codecs.decode(sn_hex, "hex").decode('utf-8')
+    # logger.debug("Message: {}, seq: {:3}, SN: {}, from: {}".\
+    #     format(msg["cmd_name"], msg["seq_num"], sn_str, msg["from"][0]))
     return
 
 def decode_get_sm_value_message(msg) :
@@ -92,10 +92,31 @@ def decode_get_sm_value_message(msg) :
     # I only saw the response code 0 which probably means ok
     # I guess there are other repsonse codes which indicate errors (that I never saw).
     
+    # There is already a decode layout T060120 for smart meter messages
+    #
+    # datalogserial                  : XGD6CF42W6
+    # pvserial                       : KNN0D7403B
+    # voltage_l1                     : 229.7
+    # Current_l1                     : 0.0
+    # act_power_l1                   : 0.0
+    # app_power_l1                   : 221.2
+    # react_power_l1                 : -60.5
+    # powerfactor_l1                 : -1.0
+    # pos_rev_act_power              : 0.0
+    # app_power                      : 637.1
+    # react_power                    : -378.7
+    # powerfactor                    : -0.2
+    # frequency                      : 50.0
+    # L1-2_voltage                   : 397.1
+    # L2-3_voltage                   : 397.5
+    # L3-1_voltage                   : 398.4
+    # pos_act_energy                 : 197.5
+    # rev_act_energy                 : 1723.0
+    
     if not is_get_sm_values_msg(msg["cmd"]): return
     
-    logger.debug("Message: {}, seq: {:3}, len: {}, from: {}".\
-        format(msg["cmd_name"], msg["seq_num"], msg["len"], msg["from"][0]))
+    # logger.debug("Message: {}, seq: {:3}, len: {}, from: {}".\
+    #     format(msg["cmd_name"], msg["seq_num"], msg["len"], msg["from"][0]))
     
     #logger.debug(convert_Dict2str(msg, "\n", exclude = {"dat_str", "dat_bin", "payload_str", "payload_bin", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
     #logger.debug(hex_dump(msg["payload_bin"], 16))
@@ -123,7 +144,7 @@ def decode_Datalogger_message(msg) :
     # - data length      2 bytes, typical value ...
     # Data consisting of 
     # - Device number    1 byte
-    # - command = 25     1 byte
+    # - command=25(x18)  1 byte
     # - Serial number   10 bytes of Datalogger device
     # - Padding \x00    20 bytes
     # - A register or parameter number
@@ -151,26 +172,29 @@ def decode_Datalogger_message(msg) :
     # Example response
     # same of the response values a prepended by binary values which have noknown meaning
     #
-    #  x04 = Update interall = x00 x01 5
-    #  x05 = ?               = x00 x01 1
-    #  x06 = ?               = x00 x02 32
-    #  x07 = ?               = x00 x01 "X"
-    #  x08 = Data Logger SN  = x00 x0a XGD6CF42W6
-    #  x09 = ?               = x00 x04 4x"X"
-    #  x0A = ?               = x00 x01 0
-    #  x0B = URL             = ##192.168.3.35/app/xml/#8081#
-    #  x0C = ?               = x00 x0f 15x"X"
-    #  x0D = ?               = x00 x02 16
-    #  x0E = IP              = 192.168.5.1
-    #  x0F = Port            = 80
-    #  x10 = MAC             = 58:BF:25:XX:XX:XX
-    #  x11 = IP              = 192.168.178.19
-    #  x12 = Port            = 5379
-    #  x13 = ?               = all zeros
-    #  x14 = ?               = x00 x14 + 20 times "X"
-    #  x15 = FW              = 3.1.1.0
-    #  x1f = Data/time       = x00 x13 2017-07-01 23:59:59 (why is it an outdated timestamp?, looks like a time format rather than a timestamp)
-    #  x4c = RSSI            = x00 x03 -54
+    #  x04 = Update intervall = x00 x01 5
+    #  x05 = ?                = x00 x01 1
+    #  x06 = ?                = x00 x02 32
+    #  x07 = ?                = x00 x01 "X"
+    #  x08 = Data Logger SN   = x00 x0a XGD6CF42W6
+    #  x09 = ?                = x00 x04 4x"X"
+    #  x0A = ?                = x00 x01 0
+    #  x0B = URL              = ##192.168.3.35/app/xml/#8081#
+    #  x0C = ?                = x00 x0f 15x"X"
+    #  x0D = ?                = x00 x02 16
+    #  x0E = IP               = 192.168.5.1
+    #  x0F = Port             = 80
+    #  x10 = MAC              = 58:BF:25:XX:XX:XX
+    #  x11 = IP               = 192.168.178.19
+    #  x12 = Port             = 5379
+    #  x13 = set server addr  = all zeros
+    #  x14 = ?                = x00 x14 + 20 times "X"
+    #  x15 = FW               = 3.1.1.0
+    #  x1f = Data/time        = x00 x13 2017-07-01 23:59:59 (why is it an outdated timestamp?, looks like a time format rather than a timestamp)
+    #  x20 = Reboot request   = x00 x01 x31
+    #  x4c = RSSI             = x00 x03 -54
+    #
+    # Error codes 0x00 = OK , 0x03 = NACK
     
     if not is_Datalogger_msg(msg["cmd"]): return
     
@@ -178,7 +202,7 @@ def decode_Datalogger_message(msg) :
         format(msg["cmd_name"], msg["len"], msg["from"][0]))
     
     #logger.debug(convert_Dict2str(msg, "\n", exclude = {"dat_str", "device_no", "rec_time", "dat_bin", "payload_str", "payload_bin", "protocol", "layout", "cmd", "record_num", "crc_len", "crc", "valid"}))
-    print(hex_dump(msg["payload_bin"], 16))
+    #print(hex_dump(msg["payload_bin"], 16))
     
     FILENAME_HEX = "datalogger.txt"
     with open(FILENAME_HEX, "a") as f:
@@ -256,7 +280,7 @@ known_commands = {
 #    cmd name                    :  int # hex: description
     "read_holding_registers"     :  3,  # x03: read holding registers
     "read_input_registers"       :  4,  # x04: read input registers 
-    "preset_one_register"        :  6,  # x06: preset single register
+    "preset_single_register"     :  6,  # x06: preset single register
     "preset_multiple_registers"  : 16,  # x10: preset multiple registers
     "ping"                       : 22,  # x16: shows if communication is workinmg
     "ServerCmd"                  : 24,  # x18: command originating from a Growatt server
@@ -321,21 +345,23 @@ def is_buffered_record(cmd: bytes) -> bool:
     else          : return False
 
 
+# \todo this function should better be called from extract_record_from_datastream
 def detect_layout(msg, conf, inverter_type = "default") -> str:
     "Detect the layout to find the mapping"
 
     layout = msg["layout"]
     
     # if this is a shine X box append X to the layout
-    LENGTH_LIMIT = 375 # SN: describe what this limit is about
+    LENGTH_LIMIT = 375 # SN: describe what this limit is about, I assume it is an empirical limit to differentiate data messages from control messages
     if msg["len"] > LENGTH_LIMIT and (msg["cmd"] not in conf.smartmeterrec):
         layout += "X"
 
-    # no invtype added to layout for smart monitor records
+    # no invtype added to layout for smart meter records
     if (inverter_type != "default") and not is_smart_meter(conf, msg["cmd"]) :
         layout += inverter_type.upper()
 
-    return layout # \todo better store it in msg["layout"]
+    msg["layout"] = layout
+    return layout
 
 
 """ validata data record on length and CRC"""
@@ -347,7 +373,7 @@ def detect_layout(msg, conf, inverter_type = "default") -> str:
 # returns 
 # 1. the number of bytes that have been processed from the provided input data stream
 # 2. a dictionary with the decoded message
-def validate_record(in_data: bytes):
+def extract_record_from_datastream(in_data: bytes):
     # 
     # A message for a Growatt inverter is structured as follows
     # this structure is derived from Modbus RTU communication
@@ -498,15 +524,15 @@ def AutoCreateLayout(conf, msg) :
                     inverter_serial = codecs.decode(msg_data_str[serialloc:serialloc+20], "hex").decode('ASCII')
                     try:
                         inverter_type = conf.invtypemap[inverter_serial].upper()
-                        logger.debug("Inverter serial: {0} found in invtypemap - using inverter type {1}".format(inverter_serial,inverter_type))
+                        logger.debug("Inverter serial: {0}     found in inv_type_map - using inverter type {1}".format(inverter_serial, inverter_type))
                     except:
-                        logger.debug("Inverter serial: {0} not found invtypemap - using inverter type {1}".format(inverter_serial,inverter_type))
+                        logger.debug("Inverter serial: {0} not found in inv_type_map - using inverter type {1}".format(inverter_serial, inverter_type))
                 except:
                     logger.critical("error in inverter_serial retrieval, try without invertypemap")
 
         if inverter_type == "AUTO" :
-            registergrp = {}
-            # layout = "AUTOGEN"
+            register_group = {}
+            
             init_layout = "ALO02" if msg["protocol"] in (0, 2) else "ALO{:02x}".format(msg["protocol"])
 
             # Decode Serial number
@@ -515,14 +541,11 @@ def AutoCreateLayout(conf, msg) :
             sn_hex = msg_data_str[start : end]
             layout = codecs.decode(sn_hex, "hex").decode('utf-8')
 
-            try: # if layout already exists
-                test = conf.recorddict[layout]["pvserial"]["value"]
-                logger.debug("layout %s already exists and will be reused", layout)
+            if hasattr(conf.recorddict, layout): # if layout exists, use it ...
+                logger.debug("layout %s exists and will be used", layout)
                 return layout
-
-            # if layout does not exist it will be created here
-            except:
-                logger.debug("create new layout %s based on device's serial number", layout)
+            else : # ... otherwise, create the missing layout
+                logger.debug("create layout %s named after device's serial number", layout)
                 conf.recorddict[layout] = {}
 
             logger.debug("layout %s is based on scheme: %s", layout, init_layout)
@@ -532,22 +555,22 @@ def AutoCreateLayout(conf, msg) :
 
             # Determine register groups used in datarecord 
             MAX_NUM_GROUPS = 5 # max 5 groups, as no layout has more than 5 register groups
-            registergrp = {}
+            register_group = {}
             grouploc = conf.recorddict[layout]["datastart"]["value"] # get group start from base layout
             for group in range(MAX_NUM_GROUPS) : 
-                groupstart = msg_data_str[grouploc     : grouploc + 4]
-                groupend   = msg_data_str[grouploc + 4 : grouploc + 8]
-                g_start    = int(groupstart, 16)
+                groupstart = msg_data_str[grouploc     : grouploc + 4] # start addr is 2 bytes long
+                groupend   = msg_data_str[grouploc + 4 : grouploc + 8] # end   addr is 2 bytes long
+                g_start    = int(groupstart, 16)       
                 g_end      = int(groupend,   16)
                 
-                registergrp[group] = { 
+                register_group[group] = { 
                     "start"    : g_start, 
                     "end"      : g_end, 
                     "grouploc" : grouploc
                 }
                 grouploc = grouploc + 8 + (g_end - g_start +1) * 4 # calculate next group start location (if any)
                 
-                logger.debug("Detected register group {0}, values: {1}".format(group,registergrp[group]))
+                logger.debug("Detected register group {0}, values: {1}".format(group, register_group[group]))
                 
                 # is this the end of the record
                 if grouploc >= msg["len"]*2 - 4: # *2 as we work with string -4 as we ignore CRC at the end
@@ -562,14 +585,14 @@ def AutoCreateLayout(conf, msg) :
             # print("grouploc: ", grouploc)
             # Check for prot type 1 select different layout, be aware at this time we can detect difference between type = S and type SPF inverters, SPF need to be specified seperate in invtype!!!!!
             layoutversion = ""
-            if registergrp[0]["end"] < 45 : layoutversion = "V1"
+            if register_group[0]["end"] < 45 : layoutversion = "V1"
 
-            for group in registergrp :
+            for group in register_group :
 
-                grplayout = "ALO_"+str(registergrp[group]["start"])+"_"+str(registergrp[group]["end"]) + layoutversion
-                grouploc  =            registergrp[group]["grouploc"]
+                grplayout = "ALO_"+str(register_group[group]["start"])+"_"+str(register_group[group]["end"]) + layoutversion
+                grouploc  =            register_group[group]["grouploc"]
 
-                logger.debug("process layout file: %s, groupstart location: %s", grplayout, registergrp[group]["grouploc"])
+                logger.debug("process layout file: %s, groupstart location: %s", grplayout, register_group[group]["grouploc"])
 
                 try:
                     test = conf.alodict[grplayout]
@@ -581,17 +604,17 @@ def AutoCreateLayout(conf, msg) :
 
                     conf.recorddict[layout][keyword] = conf.alodict[grplayout][keyword]
                     # calculate offset value and add/override in layout file.
-                    keyloc = grouploc + 8 + ((conf.alodict[grplayout][keyword]["register"])-registergrp[group]["start"])*4
+                    keyloc = grouploc + 8 + ((conf.alodict[grplayout][keyword]["register"])-register_group[group]["start"])*4
                     conf.recorddict[layout][keyword]["value"] = keyloc
 
                     # format debug
-                    logger.debug("{0:20}: {1}".format(keyword, conf.recorddict[layout][keyword]))
+                    #logger.debug("{0:20}: {1}".format(keyword, conf.recorddict[layout][keyword]))
 
 
         if inverter_type.upper() not in ("DEFAULT", "AUTO") and msg["cmd"] not in conf.smartmeterrec :
             layout = layout + inverter_type.upper()
 
-        logger.debug("Auto Layout determined : %s", layout)
+        logger.debug("Created automatic layout : %s", layout)
         
     try: # if record dictionary provides a layout that fits to the message
         test = conf.recorddict[layout]
@@ -637,7 +660,7 @@ def interprete_msg(conf, msg):
     decode_Datalogger_message  (msg)
 
     # Create layout that fits to the received message
-    layout = AutoCreateLayout(conf, msg)
+    layout      = AutoCreateLayout(conf, msg)
     conf.layout = layout # save layout in conf to being passed to extension
 
     # if length < 12 it is a data ack record or no layout record is available
@@ -679,32 +702,32 @@ def interprete_msg(conf, msg):
             # process only keywords needed to be included (default):
             try:
                 if ((include) or (conf.includeall)):
-                    try: # check if keytype was correctly specified
+                    try:    # if key has a keytype defined, use it ...
                         keytype = conf.recorddict[layout][keyword]["type"]
-                    except: # no keytype was defined, use num as default
+                    except: # ... otherwise use num as default
                         keytype = "num"
                         
                     if keytype == "text" :
                         defined_key[keyword] = dat_str[conf.recorddict[layout][keyword]["value"]:conf.recorddict[layout][keyword]["value"]+(conf.recorddict[layout][keyword]["length"]*2)]
                         defined_key[keyword] = codecs.decode(defined_key[keyword], "hex").decode('utf-8')
                         
-                    if keytype == "num" :
+                    elif keytype == "num" :
                         defined_key[keyword] = int(dat_str[conf.recorddict[layout][keyword]["value"]:conf.recorddict[layout][keyword]["value"]+(conf.recorddict[layout][keyword]["length"]*2)],16)
                     
-                    if keytype == "numx" : # process signed integer
+                    elif keytype == "numx" : # process signed integer
                         keybytes = bytes.fromhex(dat_str[conf.recorddict[layout][keyword]["value"]:conf.recorddict[layout][keyword]["value"]+(conf.recorddict[layout][keyword]["length"]*2)])
                         defined_key[keyword] = int.from_bytes(keybytes, byteorder='big', signed=True)
                         
-                    if keytype == "log" : # process log fields
+                    elif keytype == "log" : # process log fields
                         defined_key[keyword] = log_dict[conf.recorddict[layout][keyword]["pos"]-1]
                         
-                    if keytype == "logpos" : # Process log fields, only display this field if positive
+                    elif keytype == "logpos" : # Process log fields, only display this field if positive
                         if float(log_dict[conf.recorddict[layout][keyword]["pos"]-1]) > 0 :
                             defined_key[keyword] = log_dict[conf.recorddict[layout][keyword]["pos"]-1]
                         else : 
                             defined_key[keyword] = 0
                         
-                    if keytype == "logneg" : # Process log fields, only display this field if negative
+                    elif keytype == "logneg" : # Process log fields, only display this field if negative
                         if float(log_dict[conf.recorddict[layout][keyword]["pos"]-1]) < 0 :
                             defined_key[keyword] = log_dict[conf.recorddict[layout][keyword]["pos"]-1]
                         else : 

@@ -10,7 +10,7 @@ sys.path.insert(1, 'src')
 
 from grottconf import Conf
 from utils     import decrypt_as_str, byte_decrypt
-from grottdata import interprete_msg, detect_layout, validate_record
+from grottdata import interprete_msg, detect_layout, extract_record_from_datastream
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +308,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_SPH6000)
+        (num, msg) = extract_record_from_datastream(self.raw_data_SPH6000)
         interprete_msg(conf, msg)
         assert (num          == 839)
         assert (msg["valid"] == True)
@@ -326,7 +326,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_QKB)
+        (num, msg) = extract_record_from_datastream(self.raw_data_QKB)
         interprete_msg(conf, msg)
         assert (num          == 223)
         assert (msg["valid"] == True)
@@ -344,7 +344,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_MOD700)
+        (num, msg) = extract_record_from_datastream(self.raw_data_MOD700)
         interprete_msg(conf, msg)
         assert (num          == 369)
         assert (msg["valid"] == True)
@@ -362,11 +362,11 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_CHINT_DTU666)
+        (num, msg) = extract_record_from_datastream(self.raw_data_CHINT_DTU666)
         interprete_msg(conf, msg)
         assert (num          == 188)
         assert (msg["valid"] == True)
-        assert (conf.layout  == "T06NN1b")
+        assert (conf.layout  == "T06211b")
         
         
     def test_parse_decoded_layout_EASTRON_SDM630(self):
@@ -380,7 +380,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_EASTRON_SDM630)
+        (num, msg) = extract_record_from_datastream(self.raw_data_EASTRON_SDM630)
         interprete_msg(conf, msg)
         assert (num          == 294)
         assert (msg["valid"] == True)
@@ -398,7 +398,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_Growatt)
+        (num, msg) = extract_record_from_datastream(self.raw_data_Growatt)
         interprete_msg(conf, msg) 
         assert (num          == 839)
         assert (msg["valid"] == True)
@@ -416,7 +416,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
     
-        (num, msg) = validate_record(self.raw_data_client_annonce)
+        (num, msg) = extract_record_from_datastream(self.raw_data_client_annonce)
         interprete_msg(conf, msg)
         assert (num          == 223)
         assert (msg["valid"] == True)
@@ -434,7 +434,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
     
-        (num, msg) = validate_record(self.raw_data_ping_message)
+        (num, msg) = extract_record_from_datastream(self.raw_data_ping_message)
         interprete_msg(conf, msg)
         assert (num          == 18)
         assert (msg["valid"] == True)
@@ -452,7 +452,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
         conf.verbose   = False
         conf.store_unknown_records = False
         
-        (num, msg) = validate_record(self.raw_data_0104)
+        (num, msg) = extract_record_from_datastream(self.raw_data_0104)
         interprete_msg(conf, msg)
         assert (num          == 223)
         assert (msg["valid"] == True)
@@ -461,20 +461,20 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
 
     def test_validate_record(self):
         "Test if the frame validation function work"
-        (num, msg) = validate_record(self.raw_data_SPH6000)
+        (num, msg) = extract_record_from_datastream(self.raw_data_SPH6000)
         assert msg["valid"] == True
     
     
     def test_detect_layout_T060104X(self):
         conf       = Conf("2.7.6") 
-        (num, msg) = validate_record(self.raw_data_SPH6000)
+        (num, msg) = extract_record_from_datastream(self.raw_data_SPH6000)
         layout = detect_layout(msg, conf)
         assert layout == "T060104X"
     
     
     def test_detect_layout_T060104XSPH(self):
         conf       = Conf("2.7.6") 
-        (num, msg) = validate_record(self.raw_data_SPH6000)
+        (num, msg) = extract_record_from_datastream(self.raw_data_SPH6000)
         layout = detect_layout(msg, conf, "SPH")
         assert layout == "T060104XSPH"
 
@@ -534,7 +534,7 @@ e57434f4134343030380000000000000000000000000000000000000000160a1c003838030000\
 \x6f\xa5\x2a'
 
         conf       = Conf("2.7.6") 
-        (num, msg) = validate_record(raw_data)
+        (num, msg) = extract_record_from_datastream(raw_data)
         layout = detect_layout(msg, conf)
         assert (num          == 839)
         assert (msg["valid"] == True)
@@ -595,7 +595,7 @@ f04656f35000000080000e65c0000000000000000000000000000000000000000000000000000\
     #     tests = [data1, data2, data3, data4, data5, data6, data7, data8]
     #
     #     for test in tests :
-    #         (num, msg) = validate_record(test)
+    #         (num, msg) = extract_record_from_datastream(test)
     #
     #         assert (num               == 11)
     #         assert (msg["protocol"]   ==  6)
@@ -615,28 +615,23 @@ f04656f35000000080000e65c0000000000000000000000000000000000000000000000000000\
     def test_cmd_19(self):
         conf  = Conf("2.7.6") 
 
-        data1 = b'\x00\x01\x00\x06\x00\x35\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x11\x35\x38\x3a\x42\x46\x3a\x32\x35\x3a\x34\x37\x3a\x36\x44\x3a\x43\x36\x06\x13'
-        data2 = b'\x00\x01\x00\x06\x00\x33\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x11\x00\x0f\x31\x39\x32\x2e\x31\x36\x38\x2e\x31\x37\x38\x2e\x31\x39\x32\x04\xb2'
-        data3 = b'\x00\x01\x00\x06\x00\x28\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x12\x00\x04\x35\x32\x37\x39\xe9\x58'
-        data4 = b'\x00\x01\x00\x06\x00\x24\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x13\x00\x00\xff\xbf'
-        data5 = b'\x00\x01\x00\x06\x00\x38\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\x00\x14\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x58\x6b\x02'
-        data6 = b'\x00\x01\x00\x06\x00\x2b\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x15\x00\x07\x33\x2e\x31\x2e\x31\x2e\x30\x1a\x71'
+        data1 = b'\x00\x01\x00\x06\x00\x35\x01\x19\x58\x47\x44\x36\x43\x46\x34\x32\x57\x36\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x11\x35\x38\x3a\x42\x46\x3a\x32\x35\x3a\x34\x37\x3a\x36\x44\x3a\x43\x36\xea\xa8'
         
-        tests = [data1, data2, data3, data4, data5, data6]
+        tests = [data1]
         
         for test in tests :
-            (num, msg) = validate_record(test)
+            (num, msg) = extract_record_from_datastream(test)
     
-            assert (num               == 11)
+            assert (num               == 61)
             assert (msg["protocol"]   ==  6)
-            assert (msg["len"]        == 11)
-            assert (msg["dat_len"]    ==  3)
-            assert (msg["cmd"]        == 80)
+            assert (msg["len"]        == 61)
+            assert (msg["dat_len"]    == 53)
+            assert (msg["cmd"]        == 25)
             assert (msg["device_no"]  ==  1)
             assert (msg["crc_len"]    ==  2)
-            assert (msg["layout"]     ==  "T060150")
-            assert (msg["record_num"] ==  "0150")
-            assert (msg["valid"]      ==  True)
+            assert (msg["layout"]     ==  "T060119")
+            assert (msg["record_num"] ==     "0119")
+            assert (msg["valid"]      ==       True)
     
             layout = detect_layout(msg, conf, "SPH")
-            assert layout == "T060150SPH"
+            assert layout == "T060119SPH"

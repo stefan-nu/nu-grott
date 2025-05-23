@@ -1,13 +1,13 @@
 """nu-grott Growatt monitor : Proxy mode """
 
-from datetime  import datetime
+#from datetime  import datetime
 import logging
 import socket   # BSD socket interface: https://docs.python.org/3/library/socket.html
 import select
 import time
 import sys
-from utils     import decrypt_as_bin, hex_dump, to_hexstring, format_multi_line
-from grottdata import interprete_msg, validate_record
+from utils     import to_hexstring #decrypt_as_bin, hex_dump, format_multi_line
+from grottdata import interprete_msg, extract_record_from_datastream
 
 
 vrmproxy = "3.0.0"
@@ -187,7 +187,7 @@ class Proxy:
                     # valid message, if so extract the basic information that
                     # describe the message and store them in a dictionary to
                     # ease later processing of the message 
-                    (processed_bytes, msg) = validate_record(msg_buffer)
+                    (processed_bytes, msg) = extract_record_from_datastream(msg_buffer)
                     
                     # filter out corrupt messages
                     # if the length is wrong this happens most likely if a
@@ -198,9 +198,12 @@ class Proxy:
                     if msg['valid'] == False :
                         return
                     
-                    if processed_bytes > 0 :
+                    elif processed_bytes > 0 :
                     
-                        msg.update({"from" : self.channel[self.s].getpeername()})
+                        try:
+                            msg.update({"from" : self.channel[self.s].getpeername()})
+                        except:
+                            print("invalid socket")
                     
                         # keep the unprocessed message to forward it later
                         self.data = msg_buffer[0 : processed_bytes] 
@@ -210,7 +213,7 @@ class Proxy:
                         # message or part of it 
                         msg_buffer = msg_buffer[processed_bytes:]
                         
-                        #logger.info("\nReceived {} (={}) message, dat_len: {}, with sequence {} from: {} "\
+                        #logger.debug("Received {} (={}) message, dat_len: {}, with sequence {} from: {} "\
                         #            .format(msg["cmd_name"],  msg["cmd"], msg["dat_len"], msg["seq_num"], self.channel[self.s].getpeername()))
                         #logger.debug("Socket: %s", self.channel[self.s]) 
                         

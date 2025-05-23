@@ -6,7 +6,7 @@ import ipaddress
 from os import walk
 from utils import format_multi_line, convert2bool
 import logging
-from test import test_cmd_line
+#from test import test_cmd_line
 
 # logging.basicConfig(level=logging.INFO)
 logger  = logging.getLogger(__name__)
@@ -290,11 +290,11 @@ class Conf :
         parser.add_argument('-o',              help="set output file, if not specified output is stdout",        metavar="[output file]")
     
         # get args
-        args, unknown = parser.parse_known_args()
+        (args, unknown) = parser.parse_known_args()
         
         # process args
         if (args.c   != None) : self.cfgfile = args.c
-        #if (args.o  != None) : sys.stdout   = open(args.o, 'wb',0) changed to support unbuffered output in windows !!!
+        #if(args.o   != None) : sys.stdout   =                  open(args.o, 'wb', 0) # changed to support unbuffered output in windows
         if (args.o   != None) : sys.stdout   = io.TextIOWrapper(open(args.o, 'wb', 0), write_through=True)
         if (args.log != None) :
             self.loglevel=args.log.upper()
@@ -385,11 +385,9 @@ class Conf :
         if config.has_option("Generic", "port"):        self.grottport   =      config.getint    ("Generic", "port")
         if config.has_option("Generic", "valueoffset"): self.valueoffset =      config.get       ("Generic", "valueoffset")
 
-        #
         if config.has_option("Growatt", "ip"):          self.growattip   =      config.get       ("Growatt", "ip")
         if config.has_option("Growatt", "port"):        self.growattport =      config.getint    ("Growatt", "port")
         
-        # Server
         if config.has_option("Server", "serverpassthrough"):  self.serverpassthrough  = config.getboolean("Server", "serverpassthrough")
         if config.has_option("Server", "serverip"):           self.serverip           = config.get       ("Server", "serverip")
         if config.has_option("Server", "serverport"):         self.serverport         = config.getint    ("Server", "serverport")
@@ -399,7 +397,6 @@ class Conf :
         if config.has_option("Server", "dataloggerrespwait"): self.dataloggerrespwait = config.getint    ("Server","dataloggerrespwait")
         if config.has_option("Server", "ConnectionTimeout"):  self.ConnectionTimeout  = config.getint    ("Server","ConnectionTimeout")
         
-        # mqtt
         if config.has_option("MQTT", "nomqtt"):          self.nomqtt              = config.get       ("MQTT", "nomqtt")
         if config.has_option("MQTT", "ip"):              self.mqttip              = config.get       ("MQTT", "ip")
         if config.has_option("MQTT", "port"):            self.mqttport            = config.getint    ("MQTT", "port")
@@ -412,7 +409,6 @@ class Conf :
         if config.has_option("MQTT", "user"):            self.mqttuser            = config.get       ("MQTT", "user")
         if config.has_option("MQTT", "password"):        self.mqttpsw             = config.get       ("MQTT", "password")
 
-        # pvoutput
         if config.has_option("PVOutput", "pvoutput"):    self.pvoutput    = config.get   ("PVOutput", "pvoutput")
         if config.has_option("PVOutput", "pvtemp"):      self.pvtemp      = config.get   ("PVOutput", "pvtemp")
         if config.has_option("PVOutput", "pvdisv1"):     self.pvdisv1     = config.get   ("PVOutput", "pvdisv1")
@@ -427,7 +423,7 @@ class Conf :
             if config.has_option("PVOutput", "inverterid"+str(x)): self.pvinverterid[x] = config.get("PVOutput", "inverterid" + str(x))
         if self.pvinverters == 1 :           
             if config.has_option("PVOutput", "systemid"): self.pvsystemid[1] = config.get("PVOutput","systemid")
-        # INFLUX
+
         if config.has_option("influx", "influx"  ): self.influx   =     config.get("influx", "influx")
         if config.has_option("influx", "influx2" ): self.influx2  =     config.get("influx", "influx2")
         if config.has_option("influx", "dbname"  ): self.ifdbname =     config.get("influx", "dbname")
@@ -438,7 +434,7 @@ class Conf :
         if config.has_option("influx", "org"     ): self.iforg    =     config.get("influx", "org")
         if config.has_option("influx", "bucket"  ): self.ifbucket =     config.get("influx", "bucket")
         if config.has_option("influx", "token"   ): self.iftoken  =     config.get("influx", "token")
-        # extensionINFLUX
+
         if config.has_option("extension", "extension"): self.extension =      config.get("extension", "extension")
         if config.has_option("extension", "extname"  ): self.extname   =      config.get("extension", "extname")
         if config.has_option("extension", "extvar"   ): self.extvar    = eval(config.get("extension", "extvar"))
@@ -1702,6 +1698,22 @@ class Conf :
         self.recorddict.update(self.recorddict12)
         self.recorddict.update(self.recorddict13)
         self.recorddict.update(self.recorddict14)
+        
+        del(self.recorddict1)
+        del(self.recorddict2)
+        del(self.recorddict3)
+        del(self.recorddict4)
+        del(self.recorddict5)
+        del(self.recorddict6)
+        del(self.recorddict7)
+        del(self.recorddict8)
+        del(self.recorddict9)
+        del(self.recorddict10)
+        del(self.recorddict11)
+        del(self.recorddict12)
+        del(self.recorddict13)
+        del(self.recorddict14)
+        
 
         # Layout definitions for automatic record detection
         # SN: what might "alo" mean? Automatic LayOut 
@@ -2221,8 +2233,39 @@ class Conf :
             "reserved3277"     : {"value" : 1278,"length": 2,"type" : "numx","divide" :  1,"register" : 3277},
             "reserved3278"     : {"value" : 1282,"length": 2,"type" : "numx","divide" :  1,"register" : 3278},
             "reserved3279"     : {"value" : 1286,"length": 2,"type" : "numx","divide" :  1,"register" : 3279},
-            "bclrtodaydataflag": {"value" : 1290,"length": 2,"type" : "numx","divide" :  1,"register" : 3280},
+            "bclrtodaydataflag": {"value" : 1290,"length": 2,"type" : "numx","divide" :  1,"register" : 3280}
         }}
+        
+        self.ALO_3250_3374 = {"ALO_3250_3374": {
+            "pex1"             : {"value" : 1170,"length":  4,"type" : "numx","divide" : 10,"register" : 3250},
+            "pex2"             : {"value" : 1178,"length":  4,"type" : "numx","divide" : 10,"register" : 3252},
+            "eex1today"        : {"value" : 1186,"length":  4,"type" : "numx","divide" : 10,"register" : 3254},
+            "eex2today"        : {"value" : 1194,"length":  4,"type" : "numx","divide" : 10,"register" : 3256},
+            "eex1total"        : {"value" : 1202,"length":  4,"type" : "numx","divide" : 10,"register" : 3258},
+            "eex2total"        : {"value" : 1210,"length":  4,"type" : "numx","divide" : 10,"register" : 3260},
+            "uwbatno"          : {"value" : 1218,"length":  2,"type" : "numx","divide" :  1,"register" : 3262},
+            "batserialnum1"    : {"value" : 1222,"length":  2,"type" : "numx","divide" :  1,"register" : 3263},
+            "batserialnum2"    : {"value" : 1226,"length":  2,"type" : "numx","divide" :  1,"register" : 3264},
+            "batserialnum3"    : {"value" : 1230,"length":  2,"type" : "numx","divide" :  1,"register" : 3265},
+            "batserialnum4"    : {"value" : 1234,"length":  2,"type" : "numx","divide" :  1,"register" : 3266},
+            "batserialnum5"    : {"value" : 1238,"length":  2,"type" : "numx","divide" :  1,"register" : 3267},
+            "batserialnum6"    : {"value" : 1242,"length":  2,"type" : "numx","divide" :  1,"register" : 3268},
+            "batserialnum7"    : {"value" : 1246,"length":  2,"type" : "numx","divide" :  1,"register" : 3269},
+            "batserialnum8"    : {"value" : 1250,"length":  2,"type" : "numx","divide" :  1,"register" : 3270},
+            "reserved3271"     : {"value" : 1254,"length":  2,"type" : "numx","divide" :  1,"register" : 3271},
+            "reserved3272"     : {"value" : 1258,"length":  2,"type" : "numx","divide" :  1,"register" : 3272},
+            "reserved3273"     : {"value" : 1262,"length":  2,"type" : "numx","divide" :  1,"register" : 3273},
+            "reserved3274"     : {"value" : 1266,"length":  2,"type" : "numx","divide" :  1,"register" : 3274},
+            "reserved3275"     : {"value" : 1270,"length":  2,"type" : "numx","divide" :  1,"register" : 3275},
+            "reserved3276"     : {"value" : 1274,"length":  2,"type" : "numx","divide" :  1,"register" : 3276},
+            "reserved3277"     : {"value" : 1278,"length":  2,"type" : "numx","divide" :  1,"register" : 3277},
+            "reserved3278"     : {"value" : 1282,"length":  2,"type" : "numx","divide" :  1,"register" : 3278},
+            "reserved3279"     : {"value" : 1286,"length":  2,"type" : "numx","divide" :  1,"register" : 3279},
+            "bclrtodaydataflag": {"value" : 1290,"length":  2,"type" : "numx","divide" :  1,"register" : 3280},
+            "unknown"          : {"value" : 1294,"length": 94,"type" : "numx","divide" :  1,"register" : 3281}
+        }}
+        
+
 
         # add all the alodictionaries defined above to "self.alodict"
         # \todo DRY define the nested dictionary hardcoded not at runtime
@@ -2238,10 +2281,25 @@ class Conf :
         self.alodict.update(self.ALO_3000_3124)
         self.alodict.update(self.ALO_3125_3249)
         self.alodict.update(self.ALO_3250_3280)
+        self.alodict.update(self.ALO_3250_3374)
+        
+        del(self.ALO02)
+        del(self.ALO05)
+        del(self.ALO06)
+        del(self.ALO_0_44V1)
+        del(self.ALO_45_89V1)
+        del(self.ALO_0_124)
+        del(self.ALO_1000_1124)
+        del(self.ALO_1125_1249)
+        del(self.ALO_2000_2124)
+        del(self.ALO_3000_3124)
+        del(self.ALO_3125_3249)
+        del(self.ALO_3250_3280)
+        del(self.ALO_3250_3374)
 
         f = []
         logger.info("process external JSON layout files")
-        path_to_json_files = '../examples/Record Layout'
+        path_to_json_files  = '../examples/Record Layout'
         #path_to_json_files = '../cfg'
         #path_to_json_files = '.'
         for (dirpath, dirnames, filenames) in walk(path_to_json_files):
@@ -2250,18 +2308,17 @@ class Conf :
         for x in f:
             if ((x[0] == 't' or x[0] == 'T') and x.find('.json') > 0):
                 file_to_open = "{0}/{1}".format(path_to_json_files, x)
-                logger.info("read JSON file: %s", file_to_open)
+                #logger.debug("import layout from %s", file_to_open)
                 with open(file_to_open) as json_file:
                     dicttemp = json.load(json_file)
                     self.recorddict.update(dicttemp)
 
-        if self.verbose: print
-        logger.debug("layout records loaded")
-
-        for key in self.recorddict :
-            logger.info("\t{0}".format(key))
-            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.recorddict[key]), 120)))
-
-        for key in self.alodict :
-            logger.info("\t{0}".format(key))
-            logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.alodict[key]), 120)))
+        # logger.debug("layout records loaded")
+        #
+        # for key in self.recorddict :
+        #     logger.info("\t{0}".format(key))
+        #     logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.recorddict[key]), 120)))
+        #
+        # for key in self.alodict :
+        #     logger.info("\t{0}".format(key))
+        #     logger.debug("\n{0}\n".format(format_multi_line("\t", str(self.alodict[key]), 120)))

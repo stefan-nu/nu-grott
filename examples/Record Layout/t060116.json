@@ -1,0 +1,6 @@
+{ "T060116": {
+    "decrypt"             : { "value" :"True"},
+    "datalogserial"       : { "value" : 16, "length" : 10, "type" : "text" },
+    "unknown"             : { "value" : 36, "length" : 20, "type" : "text" }
+    }
+}

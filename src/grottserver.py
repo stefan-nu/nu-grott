@@ -134,8 +134,8 @@ def calc_crc(data):
     return crc
 
 
-# SN: \todo DRY use validate_record from utils 
-def validate_record(xdata):
+# SN: \todo DRY use extract_record_from_datastream from utils 
+def extract_record_from_datastream(xdata):
     # validata input_stream record on length and CRC (for "05" and "06" records)
     logger.debug("validate input_stream record")
     input_stream = bytes.fromhex(xdata)
@@ -1267,7 +1267,7 @@ class sendrecvserver:
             # validate data (Length + CRC for 05/06)
             # join gebeurt nu meerdere keren! Stroomlijnen!!!!
             vdata = "".join("{:02x}".format(n) for n in data)
-            record_valid = validate_record(vdata)
+            record_valid = extract_record_from_datastream(vdata)
 
             if record_valid == False :
                 logger.debug("invalid data record received, processing stopped for this record")
